@@ -7,24 +7,33 @@
 ## Architecture & Data Flow
 
 ```mermaid
-flowchart TD
-    subgraph StoreGate["StoreGate EventContext"]
-        Clusters["xAOD::CaloClusterContainer<br/>(InputClusterKey)"]
-        AuxCentral["xAOD::CaloRingsContainer<br/>(OutputRingerKey_Aux)"]
-        AuxFwd["xAOD::CaloRingsContainer<br/>(OutputRingerKey_Fwd_Aux)"]
-        FinalRings["xAOD::CaloRingsContainer<br/>(OutputRingerKey)"]
+graph TD
+    subgraph Inputs ["Input Containers (StoreGate)"]
+        Clusters["xAOD::CaloClusterContainer ('Clusters')"]
     end
 
-    subgraph Pipeline["CaloRings Reconstruction Pipeline"]
-        CentralMaker["Central Ring Maker<br/>(Standard / Asym / Strips / Corner / Cross / Custom)<br/>|&eta;| &isin; [0.0, 2.5]"]
-        FwdMaker["Forward Ring Maker<br/>(CaloRingsMaker)<br/>|&eta;| &isin; [2.5, 4.9]"]
-        MergeAlg["CaloRingsMerge<br/>(Consolidates Rings & Preserves ElementLinks)"]
+    subgraph Central ["Central Reconstruction (|&eta;| &le; 2.5)"]
+        CentralMaker["Central Ring Maker<br/>(Standard / Asym / Strips / Corner / Cross / Custom)"]
+        AuxCentral["xAOD::CaloRingsContainer ('Rings_Aux')"]
+        CentralMaker --> AuxCentral
+    end
+
+    subgraph Forward ["Forward Reconstruction (|&eta;| > 2.5)"]
+        FwdMaker["Forward Ring Maker<br/>(CaloRingsMaker)"]
+        AuxFwd["xAOD::CaloRingsContainer ('Rings_Fwd_Aux')"]
+        FwdMaker --> AuxFwd
+    end
+
+    subgraph Merging ["Merging Pipeline"]
+        MergeAlg["CaloRingsMerge<br/>(Consolidates Rings &amp; Preserves ElementLinks)"]
+    end
+
+    subgraph Output ["Output Container (StoreGate)"]
+        FinalRings["xAOD::CaloRingsContainer ('Rings')"]
     end
 
     Clusters --> CentralMaker
     Clusters --> FwdMaker
-    CentralMaker --> AuxCentral
-    FwdMaker --> AuxFwd
     AuxCentral --> MergeAlg
     AuxFwd --> MergeAlg
     MergeAlg --> FinalRings

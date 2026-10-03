@@ -11,13 +11,39 @@ It converts simulated energy deposits (`xAOD::CaloHitContainer`) in sensitive ca
 The digitization chain executes event-by-event and sampling-by-sampling:
 
 ```mermaid
-flowchart TD
-    Hits["xAOD::CaloHitContainer<br/>('Hits')"] --> Maker["CaloCellMaker (per Sampling)<br/>- 1. PulseGenerator: Convolves E(t) with shaper<br/>- 2. Noise Injection: Adds Gaussian noise<br/>- 3. OptimalFilter / ConstrainedOptimalFilter: Reconstructs E and tau<br/>- 4. PulsePerturber (optional): Simulates defects<br/>Output: xAOD::CaloDetDescriptorCollection"]
-    Maker -->|"Sampling Collections (EMB1_Cells, ...)"| CrossTalk{"CrossTalkMaker<br/>(Optional)"}
-    CrossTalk -->|"Cross-talk corrected collections"| Merge["CaloCellMerge<br/>- Clones descriptors into master container<br/>- Binds ElementLink to CaloDetDescriptors<br/>- Optional: FilterEmptyCells (energy > minEnergy)"]
-    Merge --> Cells["xAOD::CaloCellContainer<br/>('Cells')"]
-    Merge --> TruthCells["xAOD::CaloCellContainer<br/>('TruthCells')"]
-    Merge --> Descriptors["xAOD::CaloDetDescriptorContainer<br/>('CaloDetDescriptors')"]
+graph TD
+    subgraph Inputs ["Input Containers (StoreGate)"]
+        Hits["xAOD::CaloHitContainer ('Hits')"]
+    end
+
+    subgraph SamplingDigitization ["CaloCellMaker Algorithm (per Sampling)"]
+        Pulse["1. PulseGenerator: Convolves E(t) with shaper"]
+        Noise["2. Noise Injection: Adds Gaussian noise"]
+        OF["3. OptimalFilter / ConstrainedOptimalFilter: Reconstructs E and &tau;"]
+        Defects["4. PulsePerturber (optional): Injects defects"]
+        Pulse --> Noise --> OF --> Defects
+    end
+
+    subgraph CrossTalkStage ["Cross-Talk Simulation (Optional)"]
+        CrossTalk["CrossTalkMaker: Simulates coupling between neighboring cells"]
+    end
+
+    subgraph MergingPipeline ["CaloCellMerge Algorithm"]
+        Merge["Consolidates Descriptors into Master Container<br/>Binds ElementLink&lt;CaloDetDescriptor&gt;<br/>Filters empty cells if requested"]
+    end
+
+    subgraph Output ["Output Containers (StoreGate)"]
+        Cells["xAOD::CaloCellContainer ('Cells')"]
+        TruthCells["xAOD::CaloCellContainer ('TruthCells')"]
+        Descriptors["xAOD::CaloDetDescriptorContainer ('CaloDetDescriptors')"]
+    end
+
+    Hits --> Pulse
+    Defects --> CrossTalk
+    CrossTalk --> Merge
+    Merge --> Cells
+    Merge --> TruthCells
+    Merge --> Descriptors
 ```
 
 ---

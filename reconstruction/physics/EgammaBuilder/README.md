@@ -7,29 +7,35 @@
 ## Architecture & Data Flow
 
 ```mermaid
-flowchart TD
-    subgraph StoreGate["StoreGate EventContext"]
-        Clusters["xAOD::CaloClusterContainer<br/>(InputClusterKey)"]
-        Electrons["xAOD::ElectronContainer<br/>(OutputElectronKey)"]
-        Histograms[("StoreGate Histograms<br/>(HistogramPath)")]
+graph TD
+    subgraph Inputs ["Input Containers (StoreGate)"]
+        Clusters["xAOD::CaloClusterContainer ('CaloClusters')"]
     end
 
-    subgraph Algorithm["ElectronMaker Algorithm"]
+    subgraph Identification ["ElectronMaker Algorithm"]
         ClusLoop["Iterate over CaloClusters"]
-        Link["Set ElementLink&lt;CaloCluster&gt;<br/>(m_clusterKey, clus_idx)"]
-        PID["evaluatePID (Single Pass)<br/>Central (rhad, reta, eratio)<br/>Forward (Moments)"]
-        CreateEl["Create xAOD::Electron<br/>Set PID flags (Tight, Medium, Loose, VLoose)"]
+        Link["Set ElementLink&lt;CaloCluster&gt;"]
+        PID["evaluatePID (Single Pass)<br/>Central (rhad, reta, eratio)<br/>Forward (Shower Moments)"]
+        CreateEl["Create xAOD::Electron<br/>Set Operating Points (Tight, Medium, Loose, VLoose)"]
+        ClusLoop --> Link
+        ClusLoop --> PID
+        PID --> CreateEl
+        Link --> CreateEl
+    end
+
+    subgraph Output ["Output Containers (StoreGate)"]
+        Electrons["xAOD::ElectronContainer ('Electrons')"]
+    end
+
+    subgraph Monitoring ["Histogram Service"]
         HistFill["fillHistograms<br/>(el_e, el_et, el_eta, el_phi, el_pid)"]
+        Histograms[("StoreGate Histograms ('Expert/Electrons')")]
+        HistFill --> Histograms
     end
 
     Clusters --> ClusLoop
-    ClusLoop --> Link
-    ClusLoop --> PID
-    PID --> CreateEl
-    Link --> CreateEl
     CreateEl --> Electrons
     Electrons --> HistFill
-    HistFill --> Histograms
 ```
 
 ---

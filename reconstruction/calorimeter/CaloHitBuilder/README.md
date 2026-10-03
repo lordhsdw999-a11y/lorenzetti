@@ -9,10 +9,26 @@ The `CaloHitBuilder` package provides algorithms and configuration infrastructur
 During Geant4 simulation, particles deposit energy in sensitive calorimeter volumes across multiple bunch crossings (BC). `CaloHitBuilder` processes these energy deposits and converts them into structured Event Data Model (EDM) hits.
 
 ```mermaid
-flowchart TD
-    G4Steps["Geant4 Simulation Steps<br/>(Energy Deposition in Sensitive Volumes)"] --> Maker["CaloHitMaker (per Sampling)<br/>- Discretizes energy into (eta, phi) cells<br/>- Calculates per-BC edep and TOF<br/>Output: xAOD::CaloHitCollection (map)"]
-    Maker -->|"Sampling Hit Collections (EMB1_Hits, ...)"| Merge["CaloHitMerge<br/>- Merges sampling hit collections<br/>- Optional: FilterEmptyHits (energy > minEnergy)"]
-    Merge --> Output["xAOD::CaloHitContainer ('Hits')<br/>(StoreGate Master Container)"]
+graph TD
+    subgraph Simulation ["Geant4 Simulation Stage"]
+        G4Steps["Energy Depositions in Sensitive Volumes<br/>(G4Step across Bunch Crossings)"]
+    end
+
+    subgraph SamplingHitBuilding ["CaloHitMaker Algorithms (per Sampling)"]
+        Maker["Discretizes Energy into (&eta;, &phi;) Cells<br/>Tracks Time-of-Flight &amp; BCID<br/>Output: xAOD::CaloHitCollection maps"]
+    end
+
+    subgraph MergingPipeline ["CaloHitMerge Algorithm"]
+        Merge["Aggregates Sampling Hit Collections<br/>Filters empty/sub-threshold hits"]
+    end
+
+    subgraph Output ["Output Container (StoreGate)"]
+        Hits["xAOD::CaloHitContainer ('Hits')"]
+    end
+
+    G4Steps --> Maker
+    Maker --> Merge
+    Merge --> Hits
 ```
 
 ---

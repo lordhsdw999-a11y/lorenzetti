@@ -9,11 +9,33 @@ The `CaloClusterBuilder` package is responsible for reconstructing calorimeter c
 The seeded-clustering reconstruction pipeline executes event-by-event:
 
 ```mermaid
-flowchart TD
-    Seeds["xAOD::SeedContainer<br/>('Seeds')"] --> ClusterMaker["CaloClusterMaker<br/>1. Find Hottest Cell in EM2 (EMB2/EMEC2)<br/>2. Validate core energy >= MinCenterEnergy (0.1x0.1)<br/>3. Accumulate cells within EtaWindow/PhiWindow<br/>4. Bind ElementLink<Seed> to parent Seed"]
-    Cells["xAOD::CaloCellContainer<br/>('Cells')"] --> ClusterMaker
-    ClusterMaker --> Shower["ShowerShapes Tool<br/>Calculates layer fractions, Weta2, Reta, Rphi, Rhad, Eratio, Forward Moments"]
-    Shower --> Output["xAOD::CaloClusterContainer<br/>('Clusters')"]
+graph TD
+    subgraph Inputs ["Input Containers (StoreGate)"]
+        Seeds["xAOD::SeedContainer ('Seeds')"]
+        Cells["xAOD::CaloCellContainer ('Cells')"]
+    end
+
+    subgraph Clustering ["CaloClusterMaker Algorithm"]
+        Scan["Find Hottest Cell in EM2 (EMB2 / EMEC2)"]
+        Val["Validate Core Energy >= MinCenterEnergy (0.1 x 0.1)"]
+        Acc["Accumulate Cells within Eta/Phi Window"]
+        Link["Bind ElementLink&lt;Seed&gt; to Parent Seed"]
+        Scan --> Val --> Acc --> Link
+    end
+
+    subgraph Shapes ["ShowerShapes Tool"]
+        Compute["Calculate Shower Moments & Shapes<br/>(f0-f3, ehad, Weta2, Reta, Rphi, Rhad, Eratio)"]
+    end
+
+    subgraph Output ["Output Container (StoreGate)"]
+        Clusters["xAOD::CaloClusterContainer ('Clusters')"]
+    end
+
+    Seeds --> Scan
+    Cells --> Scan
+    Cells --> Acc
+    Link --> Compute
+    Compute --> Clusters
 ```
 
 ---
