@@ -3,39 +3,39 @@
 
 /** simulator includes **/
 #include "CaloCell/CaloCell.h"
+#include <map>
+#include <cstdint>
 
-namespace xAOD{
+namespace xAOD {
 
+  typedef std::map<unsigned long int, const xAOD::CaloCell*> cell_links_t;
 
-    typedef std::map<unsigned long int, const xAOD::CaloCell*> cell_links_t;
+  struct CaloCell_t {
+    float e;
+    float et;
+    float tau; 
+    float eta;
+    float phi;
+    float deta;
+    float dphi;
+    
+    uint64_t descriptor_key_hash;
+    uint32_t descriptor_index;
+    unsigned long int descriptor_link; // Legacy / geometric hash link
+  };
 
-    struct CaloCell_t{
-        float e;
-        float et;
-        float tau; 
-        float eta;
-        float phi;
-        float deta;
-        float dphi;
-        unsigned long int descriptor_link; // NOTE: lets use hash as link
-    };
+  class CaloCellConverter {
+  public:
+    CaloCellConverter() = default;
+    ~CaloCellConverter() = default;
 
-    class CaloCellConverter{
+    // Convert an EDM class object into a persistent struct
+    bool convert(const CaloCell *cell, CaloCell_t &cell_t);
 
-        public:
-            CaloCellConverter()=default;
-            ~CaloCellConverter()=default;
+    // Convert a persistent struct into an EDM class object
+    bool convert(const CaloCell_t &cell_t, CaloCell *&cell);
+  };
 
-            // convert a class object into a struct
-            bool convert(const CaloCell *, CaloCell_t & );
+} // namespace xAOD
 
-            bool convert( const CaloCell_t &, CaloCell *& );
-
-        private:
-
-    };
-
-}
 #endif
-
-

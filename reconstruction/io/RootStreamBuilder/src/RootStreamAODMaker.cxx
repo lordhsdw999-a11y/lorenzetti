@@ -348,7 +348,7 @@ void RootStreamAODMaker::serializeCaloCluster(EventContext &ctx,
 
   std::map<unsigned long int, const xAOD::CaloCell *> cell_map;
 
-  for (const auto clus : **container.ptr())
+  for (const auto clus : *container)
   {
     xAOD::CaloCluster_t clus_t;
     xAOD::CaloClusterConverter cnv;
@@ -410,7 +410,7 @@ void RootStreamAODMaker::serializeTruthParticle(EventContext &ctx,
     MSG_FATAL("It's not possible to read the xAOD::TruthParticleContainer from this Context using this key " << key);
   }
 
-  for (const auto par : **container.ptr())
+  for (const auto par : *container)
   {
     xAOD::TruthParticle_t par_t;
     xAOD::TruthParticleConverter cnv;
@@ -432,7 +432,7 @@ void RootStreamAODMaker::serializeEventInfo(EventContext &ctx,
 
   xAOD::EventInfo_t event_t;
   xAOD::EventInfoConverter cnv;
-  cnv.convert((**event.ptr()).front(), event_t);
+  cnv.convert((*event).front(), event_t);
   container_t->push_back(event_t);
 }
 
@@ -448,7 +448,7 @@ void RootStreamAODMaker::serializeSeeds(EventContext &ctx,
     MSG_FATAL("It's not possible to read the xAOD::SeedContainer from this Context using this key " << key);
   }
 
-  for (const auto seed : **container.ptr())
+  for (const auto seed : *container)
   {
     xAOD::Seed_t seed_t;
     xAOD::SeedConverter cnv;
@@ -469,7 +469,7 @@ void RootStreamAODMaker::serializeCaloRings(EventContext &ctx,
     MSG_FATAL("It's not possible to read the xAOD::CaloRingsContainer from this Context using this key " << key);
   }
 
-  for (const auto rings : **container.ptr())
+  for (const auto rings : *container)
   {
     xAOD::CaloRings_t rings_t;
     xAOD::CaloRingsConverter cnv;
@@ -489,7 +489,7 @@ void RootStreamAODMaker::serializeElectrons(EventContext &ctx,
     MSG_FATAL("It's not possible to read the xAOD::ElectronContainer using this key " << key);
   }
 
-  for (const auto electron : **container.ptr())
+  for (const auto electron : *container)
   {
     xAOD::Electron_t electron_t;
     xAOD::ElectronConverter cnv;

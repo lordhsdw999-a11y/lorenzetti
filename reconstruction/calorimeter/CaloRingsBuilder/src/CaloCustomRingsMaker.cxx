@@ -85,18 +85,28 @@ StatusCode CaloCustomRingsMaker::post_execute(SG::EventContext &ctx) const
                             nShifts);
     }
 
-    for (auto *clus : **clusters.ptr())
+    uint32_t clus_idx = 0;
+    for (const auto clus : *clusters)
     {
+        if (!clus)
+        {
+            clus_idx++;
+            continue;
+        }
+
         MSG_INFO("Creating Custom CaloRings for this cluster...");
 
         if (std::abs(clus->eta()) < m_etaRange[0] ||
             std::abs(clus->eta()) >= m_etaRange[1])
         {
             MSG_DEBUG("Skipping cluster out of eta range: " << clus->eta());
+            clus_idx++;
             continue;
         }
 
         auto *rings = new xAOD::CaloRings();
+        rings->setEta(clus->eta());
+        rings->setPhi(clus->phi());
 
         for (auto &rs : vec_rs)
         {
@@ -125,8 +135,10 @@ StatusCode CaloCustomRingsMaker::post_execute(SG::EventContext &ctx) const
             ref_rings.insert(ref_rings.end(), rs.rings().begin(), rs.rings().end());
 
         rings->setRings(ref_rings);
-        rings->setCaloCluster(clus);
+        rings->setCaloCluster(m_clusterKey, clus_idx, clus);
         ringer->push_back(rings);
+
+        clus_idx++;
     }
 
     return StatusCode::SUCCESS;

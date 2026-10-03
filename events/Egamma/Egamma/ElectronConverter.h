@@ -1,38 +1,34 @@
 #ifndef ElectronConverter_h
 #define ElectronConverter_h
 
-/** simulator includes **/
 #include "Egamma/Electron.h"
-#include "CaloCluster/CaloClusterConverter.h"
+#include <vector>
+#include <cstdint>
 
-namespace xAOD{
+namespace xAOD {
 
-    struct Electron_t{
-        int cluster_link;
-        float e;
-        float et;
-        float eta;
-        float phi;
-        std::vector<bool> isEM;
-    };
+  struct Electron_t {
+    uint64_t          cluster_key_hash;
+    uint32_t          cluster_index;
+    float             e;
+    float             et;
+    float             eta;
+    float             phi;
+    std::vector<bool> isEM;
+  };
 
-    class ElectronConverter{
+  class ElectronConverter {
+  public:
+    ElectronConverter() = default;
+    ~ElectronConverter() = default;
 
-        public:
-            ElectronConverter()=default;
-            ~ElectronConverter()=default;
+    // Convert an EDM class object into a persistent struct
+    bool convert(const Electron *electron, Electron_t &electron_t);
 
-            // convert a class object into a struct
-            bool convert( const Electron *, Electron_t & ) ;
-            bool convert( const Electron_t &electron_t, Electron *&electron );
+    // Convert a persistent struct into an EDM class object
+    bool convert(const Electron_t &electron_t, Electron *&electron);
+  };
 
-        private:
+} // namespace xAOD
 
-    };
-
-
-
-}
 #endif
-
-

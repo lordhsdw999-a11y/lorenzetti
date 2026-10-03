@@ -2,43 +2,91 @@
 #define DataHandle_icc
 
 #include "GaugiKernel/MsgStream.h"
-#include "GaugiKernel/DataVector.h"
 #include "GaugiKernel/DataHandle.h"
+#include "GaugiKernel/StringHash.h"
 #include <string>
 #include <map>
 #include <memory>
+#include <typeinfo>
 
-
-namespace SG{
+namespace SG {
 
   /*
    * Event Context 
    */
 
   template<class T>
-  void EventContext::record( std::string &sgkey, std::unique_ptr<T> &container  )
-  {
-    // Make this as const
-    const DataHandle *ptr = dynamic_cast<DataHandle*>(container.get());
-    if ( !m_storable_ptr.count(sgkey) ){
-      m_storable_ptr.insert( std::make_pair(sgkey, std::unique_ptr<const DataHandle>(ptr) ) );
-      container.release(); // release the pointer ownship
-    }else{
-      MSG_WARNING( "The key (" << sgkey << ") exist into the event context. Its not possible to record this container" );
+  void EventContext::record(std::string &sgkey, std::unique_ptr<T> &container) {
+    if (!container) {
+      MSG_WARNING("Attempted to record nullptr container for key: " << sgkey);
+      return;
+    }
+
+    // Downcast to DataHandle base
+    DataHandle *handlePtr = dynamic_cast<DataHandle*>(container.get());
+    if (!handlePtr) {
+      MSG_FATAL("Container for key (" << sgkey << ") does not inherit from SG::DataHandle! Aborting record.");
+      return;
+    }
+
+    // Inject this EventContext pointer into container
+    handlePtr->setContext(this);
+
+    if (!m_storable_ptr.count(sgkey)) {
+      uint64_t key_hash = Gaugi::stringHash(sgkey);
+      uint64_t type_hash = Gaugi::hashKey(typeid(T).name(), sgkey);
+
+      const DataHandle* constPtr = handlePtr;
+
+      // Register by key string
+      m_storable_ptr.insert(std::make_pair(sgkey, std::unique_ptr<const DataHandle>(constPtr)));
+      
+      // Register by hash
+      m_hash_to_ptr[key_hash] = constPtr;
+      m_hash_to_ptr[type_hash] = constPtr;
+      m_key_to_hash[sgkey] = key_hash;
+      m_hash_to_key[key_hash] = sgkey;
+
+      container.release(); // release unique_ptr ownership to m_storable_ptr
+    } else {
+      MSG_WARNING("The key (" << sgkey << ") already exists in EventContext. Cannot record container.");
     }
   }
 
+  template<class T>
+  void EventContext::record(const std::string &sgkey, std::unique_ptr<T> &container) {
+    std::string key = sgkey;
+    record<T>(key, container);
+  }
 
   template<class T>
-  const T* EventContext::get( std::string &sgkey )
-  {
+  const T* EventContext::get(std::string &sgkey) {
     auto it = m_storable_ptr.find(sgkey);
-    if ( it != m_storable_ptr.end() ){
-      return static_cast<const T*> ( m_storable_ptr.at( sgkey ).get() );
-    }else{
-      MSG_WARNING( "The key (" << sgkey << ") does not exist into the event context. Its not possible to get this container" );
+    if (it != m_storable_ptr.end()) {
+      return dynamic_cast<const T*>(it->second.get());
+    } else {
+      MSG_WARNING("The key (" << sgkey << ") does not exist in EventContext.");
       return nullptr;
     }
+  }
+
+  template<class T>
+  const T* EventContext::get(const std::string &sgkey) {
+    std::string key = sgkey;
+    return get<T>(key);
+  }
+
+  template<class T>
+  const T* EventContext::get(uint64_t hash) {
+    // 1. Try combined TypeName#Key hash first
+    uint64_t type_hash = hash;
+    auto it = m_hash_to_ptr.find(type_hash);
+    if (it != m_hash_to_ptr.end()) {
+      return dynamic_cast<const T*>(it->second);
+    }
+    
+    MSG_WARNING("Hash (" << hash << ") does not exist in EventContext.");
+    return nullptr;
   }
   
 
@@ -46,100 +94,106 @@ namespace SG{
    * Read Handle
    */
 
-
   template<class T>
-  ReadHandle<T>::ReadHandle( std::string sgkey, EventContext &ctx ):
-    m_sgkey(sgkey)
+  ReadHandle<T>::ReadHandle(std::string sgkey, EventContext &ctx) :
+    m_sgkey(sgkey),
+    m_ptr(nullptr),
+    m_isValid(false)
   {
-    m_ptr = ctx.get<T>( sgkey );
-    m_isValid = m_ptr!=nullptr ? true : false;
+    m_ptr = ctx.get<T>(sgkey);
+    m_isValid = (m_ptr != nullptr);
   }
   
   template<class T>
   ReadHandle<T>::~ReadHandle()
   {}
   
-  
   template<class T>
-  const T* ReadHandle<T>::operator->()
-  {
+  const T* ReadHandle<T>::operator->() const {
     return m_ptr;
   }
   
-  
   template<class T>
-  const T* ReadHandle<T>::operator*()
-  {
+  const T& ReadHandle<T>::operator*() const {
+    return *m_ptr;
+  }
+
+  template<class T>
+  const T* ReadHandle<T>::ptr() const {
+    return m_ptr;
+  }
+
+  template<class T>
+  const T* ReadHandle<T>::get() const {
     return m_ptr;
   }
 
   template<class T>
-  const T* ReadHandle<T>::ptr()
-  {
-    return m_ptr;
-  }
-
-
-  template<class T>
-  std::string ReadHandle<T>::key()
-  {
+  std::string ReadHandle<T>::key() const {
     return m_sgkey;
   }
   
-  
   template<class T>
-  bool ReadHandle<T>::isValid()
-  {
+  bool ReadHandle<T>::isValid() const {
     return m_isValid;
   }
   
-  
+
   /*
-   * WriteHandle
+   * Write Handle
    */
   
-  /*! Constructor */
   template<class T>
-  WriteHandle<T>::WriteHandle( std::string sgkey, EventContext &ctx ):
+  WriteHandle<T>::WriteHandle(std::string sgkey, EventContext &ctx) :
     m_sgkey(sgkey),
+    m_ptr(nullptr),
     m_ctx(&ctx)
-  {;}
-  
-  
-  /*! Destructor */
+  {}
+
   template<class T>
-  WriteHandle<T>::~WriteHandle()
-  {
-    m_ctx->record<T>(m_sgkey,m_ptr);
+  WriteHandle<T>::WriteHandle() :
+    m_sgkey(""),
+    m_ptr(nullptr),
+    m_ctx(nullptr)
+  {}
+  
+  template<class T>
+  WriteHandle<T>::~WriteHandle() {
+    if (m_ctx && m_ptr) {
+      m_ctx->record<T>(m_sgkey, m_ptr);
+    }
   }
   
-  /*! transfer the pointer to context */
   template<class T>
-  void WriteHandle<T>::record( std::unique_ptr<T> ptr )
-  {
+  void WriteHandle<T>::record(std::unique_ptr<T> ptr) {
     m_ptr = std::move(ptr);  
   }
   
-  /*! return the pointer */
   template<class T>
-  T* WriteHandle<T>::operator->()
-  {
+  T* WriteHandle<T>::operator->() {
     return m_ptr.get();
   }
   
-  
   template<class T>
-  T& WriteHandle<T>::operator*()
-  {
+  T& WriteHandle<T>::operator*() {
     return *m_ptr.get();
   }
-  
 
+  template<class T>
+  T* WriteHandle<T>::get() {
+    return m_ptr.get();
+  }
 
+  template<class T>
+  T* WriteHandle<T>::ptr() {
+    return m_ptr.get();
+  }
 
-}
+  template<class T>
+  std::string WriteHandle<T>::key() const {
+    return m_sgkey;
+  }
 
-
+} // namespace SG
 
 #endif
-

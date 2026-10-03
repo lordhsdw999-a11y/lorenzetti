@@ -1,27 +1,35 @@
+"""
+Digitization configuration flags for calorimeter cell reconstruction.
+"""
+
+from GaugiKernel import EnumStringification
+from GaugiKernel.constants import GeV
 
 __all__ = ["CaloFlags", "CrossTalkFlags", "AnomalyFlags"]
 
 
-from GaugiKernel import EnumStringification
-from GaugiKernel.constants import *
-
 class CaloFlags(EnumStringification):
+    """
+    Global steering flags for calorimeter digitization.
+    """
+    SamplingnoiseStd: float = 0.0
+    DoCrossTalk: bool = False
+    DoCOF: bool = False
+    DoDefects: bool = False
 
-    # cell global parameters
-    SamplingnoiseStd    = 0.0 
-    # crosstalk flags
-    DoCrossTalk         = False
-    # energy estimation flags
-    DoCOF               = False
-    
-    DoDefects           = False
-    
-    
+
 class CrossTalkFlags(EnumStringification):
-    MinEnergy         = 1*GeV
-    AmpCapacitive     = 4.2
-    AmpInductive      = 2.3
-    AmpResistive      = 1.0
-    
+    """
+    Steering flags for cross-talk simulation between neighboring calorimeter cells.
+    """
+    MinEnergy: float = 1.0 * GeV
+    AmpCapacitive: float = 4.2
+    AmpInductive: float = 2.3
+    AmpResistive: float = 1.0
+
+
 class AnomalyFlags(EnumStringification):
-    BadRunListFile   = ""
+    """
+    Configuration flags for detector defects and anomalies.
+    """
+    BadRunListFile: str = ""

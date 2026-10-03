@@ -9,79 +9,69 @@
 #include "CaloCluster/CaloClusterContainer.h"
 #include "EventInfo/SeedContainer.h"
 #include "ShowerShapes.h"
-
+#include <string>
+#include <memory>
 
 /**
  * @class CaloClusterMaker
- * @brief Algorithm to reconstruct calorimeter clusters.
+ * @brief Reconstruction algorithm to perform Seeded-Clustering.
  * 
  * Uses a seed-based approach to group calorimeter cells into clusters.
  * It identifies the highest energy cell (seed) and aggregates surrounding cells
- * within a defined window.
+ * within a defined window, calculating comprehensive shower shape variables.
  */
-class CaloClusterMaker : public Gaugi::Algorithm
-{
+class CaloClusterMaker : public Gaugi::Algorithm {
+public:
+  /** Constructor **/
+  CaloClusterMaker(std::string name);
+  
+  /** Destructor **/
+  virtual ~CaloClusterMaker();
+  
+  /*! Initialize the algorithm **/
+  virtual StatusCode initialize() override;
 
-  public:
-    /** Constructor **/
-    CaloClusterMaker( std::string );
-    
-    virtual ~CaloClusterMaker();
-    
-    virtual StatusCode initialize() override;
+  /*! Book histograms into the current StoreGate **/
+  virtual StatusCode bookHistograms(SG::EventContext &ctx) const override;
+  
+  /*! Execute in step action (no-op for cluster maker) **/
+  virtual StatusCode execute(SG::EventContext &ctx, const G4Step *step) const override;
+  
+  /*! Execute in ComponentAccumulator **/
+  virtual StatusCode execute(SG::EventContext &ctx, int /*evt*/) const override;
+  
+  /*! Execute before step action **/
+  virtual StatusCode pre_execute(SG::EventContext &ctx) const override;
 
-    /*! Book all histograms into the current storegate */
-    virtual StatusCode bookHistograms( SG::EventContext &ctx ) const override;
-    
-    /*! Execute in step action step from geant core */
-    virtual StatusCode execute( SG::EventContext &ctx , const G4Step *step) const override;
-    
-    /*! Execute in ComponentAccumulator */
-    virtual StatusCode execute( SG::EventContext &ctx , int /*evt*/ ) const override;
-    
-    /*! execute before start the step action */
-    virtual StatusCode pre_execute( SG::EventContext &ctx ) const override;
+  /*! Execute after step action / event clustering loop **/
+  virtual StatusCode post_execute(SG::EventContext &ctx) const override;
+  
+  /*! Fill histograms in the end **/
+  virtual StatusCode fillHistograms(SG::EventContext &ctx) const override;
+  
+  /*! Finalize the algorithm **/
+  virtual StatusCode finalize() override;
 
-    /*! execute after the step action */
-    virtual StatusCode post_execute( SG::EventContext &ctx ) const override;
-    
-    /*! fill histogram in the end */
-    virtual StatusCode fillHistograms( SG::EventContext &ctx ) const override;
-    
-    virtual StatusCode finalize() override;
+private:
+  void fillCluster(SG::EventContext &ctx, xAOD::CaloCluster *clus, const std::string &key) const;
+  float dR(float eta1, float phi1, float eta2, float phi2) const;
 
+  // Input keys
+  std::string m_cellsKey; 
+  std::string m_seedKey;
 
+  // Output keys
+  std::string m_clusterKey;
 
-  private:
- 
-    
-    void fillCluster( SG::EventContext &ctx,  xAOD::CaloCluster *clus, std::string key ) const;
-    
-    float dR( float eta1, float phi1, float eta2, float phi2 ) const;
- 
-    
-      
-    // input keys
-    std::string m_cellsKey; 
-    std::string m_seedKey;
-    // output keys
-    std::string m_clusterKey;
+  float m_etaWindow;
+  float m_phiWindow;
+  bool m_doForwardMoments;
+  std::string m_histPath;
 
-    float m_etaWindow;
-    float m_phiWindow;
-    bool m_doForwardMoments;
-    std::string m_histPath;
+  // Shower shape calculator
+  ShowerShapes *m_showerShapes;
 
-    // Shower shaper calculator
-    ShowerShapes *m_showerShapes;
-
-    float m_minCenterEnergy;
-
-
+  float m_minCenterEnergy;
 };
 
 #endif
-
-
-
-

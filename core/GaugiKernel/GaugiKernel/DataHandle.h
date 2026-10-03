@@ -3,179 +3,218 @@
 
 #include "GaugiKernel/StoreGate.h"
 #include "GaugiKernel/MsgStream.h"
+#include "GaugiKernel/StringHash.h"
 #include <string>
 #include <map>
 #include <memory>
+#include <vector>
+#include <typeinfo>
+#include <type_traits>
+#include <utility>
 
+namespace SG {
 
-namespace SG{
+  class EventContext;
 
+  /**
+   * @class DataHandle
+   * @brief Base class for downcasting all containers managed within EventContext.
+   */
+  class DataHandle {
+  public:
+    DataHandle() : m_ctx(nullptr) {}
+    virtual ~DataHandle() {}
 
-  // Base class for downcast 
-  class DataHandle{
-    public:
-      DataHandle()=default;
-      virtual ~DataHandle(){};
+    /**
+     * @brief Set the EventContext managing this container.
+     */
+    virtual void setContext(EventContext* ctx) {
+      m_ctx = ctx;
+    }
 
+    /**
+     * @brief Get the EventContext managing this container.
+     */
+    virtual EventContext* getContext() const {
+      return m_ctx;
+    }
+
+  protected:
+    EventContext* m_ctx; //! Transient context pointer
   };
 
 
+  /**
+   * @class EventContext
+   * @brief Central per-event data bus storing and providing O(1) lookup by key and hash.
+   */
+  class EventContext : public MsgService {
+  public:
+    /*! Constructor */
+    EventContext(std::string name);
+    
+    /*! Destructor */
+    ~EventContext();
 
-  class EventContext : public MsgService
-  {
-    public:
+    /*! Record Containers of type DataVector<OBJECT> into EventContext */
+    template<class T> 
+    void record(std::string &sgkey, std::unique_ptr<T> &container);
+
+    template<class T> 
+    void record(const std::string &sgkey, std::unique_ptr<T> &container);
+
+    /*! Get container pointer given a key string */
+    template<class T> 
+    const T* get(std::string &sgkey);
+
+    template<class T> 
+    const T* get(const std::string &sgkey);
+
+    /*! Get container pointer given a 64-bit key hash */
+    template<class T> 
+    const T* get(uint64_t hash);
+
+    /*! Clear all data handlers map and hash tables */
+    void clear();
       
-      /*! Contructor */
-      EventContext( std::string name );
-      
-      /*! Destructor */
-      ~EventContext();
+    /*! Set the store gate service */
+    void setStoreGateSvc(StoreGate *store) { m_store = store; }
 
-      /*! Record only Containers of type DataVector<OBJECT> */
-      template<class T> void record( std::string &sgkey, std::unique_ptr<T> &container );
+    /*! Get the store gate service */
+    StoreGate* getStoreGateSvc() { return m_store; }
 
-      /*! get the pointer given a key */
-      template<class T> const T* get( std::string &sgkey );
+    void setThreadId(int id) { m_threadId = id; }
+    int getThreadId() { return m_threadId; }
 
-      /*! Clear all data handlers map */
-      void clear();
-        
-      /*! Set the store gate service */
-      void setStoreGateSvc( StoreGate *store ){ m_store=store; }
+    void setNumberOfThreads(int numberOfThreads) { m_numberOfThreads = numberOfThreads; }
+    int getNumberOfThreads() { return m_numberOfThreads; }
 
-      /*! Get the store gate service */
-      StoreGate* getStoreGateSvc(){ return m_store; };
+    /*! Get all keys in storage */
+    std::vector<std::string> keys() const { 
+      std::vector<std::string> keys;
+      for (const auto &it : m_storable_ptr) {
+        keys.push_back(it.first);
+      }
+      return keys;
+    }
 
+    /*! Check if key string exists */
+    bool exist(std::string key) const {
+      return m_storable_ptr.count(key) > 0;
+    }
 
-      void setThreadId( int id ){ m_threadId = id; };
-      int getThreadId(){return m_threadId;};
+    /*! Check if hash exists */
+    bool exist(uint64_t hash) const {
+      return m_hash_to_ptr.count(hash) > 0;
+    }
 
-      void setNumberOfThreads(int numberOfThreads) { m_numberOfThreads=numberOfThreads;};
-      int getNumberOfThreads(){return m_numberOfThreads;};
+    /*! Get 64-bit hash associated with a key string */
+    uint64_t getHash(const std::string& sgkey) const {
+      auto it = m_key_to_hash.find(sgkey);
+      if (it != m_key_to_hash.end()) {
+        return it->second;
+      }
+      return Gaugi::stringHash(sgkey);
+    }
 
+    /*! Get key string associated with a 64-bit hash */
+    std::string getKeyFromHash(uint64_t hash) const {
+      auto it = m_hash_to_key.find(hash);
+      if (it != m_hash_to_key.end()) {
+        return it->second;
+      }
+      return "";
+    }
 
-      /*! Get all keys into the storage */
-      std::vector<std::string> keys() const
-      { 
-        std::vector<std::string> keys;
-        for( auto &it : m_storable_ptr)
-        {
-          keys.push_back(it.first);
-        }
-        return keys;
-      };
-
-      bool exist( std::string key ) const
-      {
-        return m_storable_ptr.count(key);
-      };
-
-
-    private:
-
-      std::map< std::string, std::unique_ptr<const DataHandle > > m_storable_ptr;
-      
-      StoreGate *m_store;
-
-      int m_threadId;
-      int m_numberOfThreads;
+  private:
+    std::map<std::string, std::unique_ptr<const DataHandle>> m_storable_ptr;
+    std::map<uint64_t, const DataHandle*> m_hash_to_ptr;
+    std::map<std::string, uint64_t> m_key_to_hash;
+    std::map<uint64_t, std::string> m_hash_to_key;
+    
+    StoreGate *m_store;
+    int m_threadId;
+    int m_numberOfThreads;
   };
 
 
+  template<class T>
+  class ReadHandle {
+  public:
+    ReadHandle(std::string sgkey, EventContext &ctx);
+    ~ReadHandle();
 
+    /*
+     * @brief Dereference the pointer / container.
+     */
+    const T* operator->() const;
+    const T& operator*() const;
+    const T* ptr() const;
+    const T* get() const;
 
+    /*
+     * @brief Forward direct iterator access for range-for loops.
+     */
+    auto begin() const -> decltype(std::declval<const T>().begin()) {
+      return m_ptr ? m_ptr->begin() : decltype(std::declval<const T>().begin()){};
+    }
+    auto end() const -> decltype(std::declval<const T>().end()) {
+      return m_ptr ? m_ptr->end() : decltype(std::declval<const T>().end()){};
+    }
 
-  template< class T >
-  class ReadHandle{
+    std::string key() const;
+    bool isValid() const;
 
-    public:
-
-      ReadHandle( std::string sgkey, EventContext &);
-      
-      ~ReadHandle();
-
-      /*
-       * @brief Dereference the pointer.
-       */
-      const T* operator->();
-
-      /*
-       * @brief Dereference the pointer.
-       */
-      const T* operator*();
-
-
-      const T* ptr();
-
-      std::string key();
-
-
-      bool isValid();
-
-
-    private:
-
-      // Key used into the storage
-      std::string m_sgkey;
-
-      // container pointer
-      const T* m_ptr;
-      
-      // Used to check if pointer was read
-      bool m_isValid; 
+  private:
+    std::string m_sgkey;
+    const T* m_ptr;
+    bool m_isValid; 
   };
 
 
-  
+  template<class T>
+  class WriteHandle {
+  public:
+    WriteHandle(std::string sgkey, EventContext &ctx);
+    WriteHandle();
+    ~WriteHandle();
 
+    /*
+     * @brief Dereference the pointer.
+     */
+    T* operator->();
+    T& operator*();
+    T* get();
+    T* ptr();
 
-  template< class T >
-  class WriteHandle{
+    /*
+     * @brief Forward direct iterator access for range-for loops.
+     */
+    auto begin() -> decltype(std::declval<T>().begin()) {
+      return m_ptr ? m_ptr->begin() : decltype(std::declval<T>().begin()){};
+    }
+    auto end() -> decltype(std::declval<T>().end()) {
+      return m_ptr ? m_ptr->end() : decltype(std::declval<T>().end()){};
+    }
 
-    public:
+    /*
+     * @brief Transfer container ownership to WriteHandle
+     */ 
+    void record(std::unique_ptr<T> ptr);
 
-      WriteHandle( std::string sgkey, EventContext & );
+    /*
+     * @brief Get the storable key
+     */ 
+    std::string key() const;
 
-      WriteHandle();
-
-      ~WriteHandle();
-
-      /*
-       * @brief Dereference the pointer.
-       */
-      T* operator->();
-
-      /*
-       * @brief Dereference the pointer.
-       */
-      T& operator*();
-
-      /*
-       * @brief tranfer the pointer to write handle
-       */ 
-      void record( std::unique_ptr<T> ptr );
-
-      /*
-       * @brief Get the storable key
-       */ 
-      std::string key();
-
-    private:
-
-      /*! Storage key */
-      std::string m_sgkey;
-      /*! Hold the container until this object will to out of scope */
-      std::unique_ptr<T> m_ptr;
-      /*! Hold the event context. The destructor will pass the pointer to the event context */
-      EventContext *m_ctx;
+  private:
+    std::string m_sgkey;
+    std::unique_ptr<T> m_ptr;
+    EventContext *m_ctx;
   };
 
-
-
-
-}
+} // namespace SG
 
 #include "DataHandle.icc"
 
 #endif
-

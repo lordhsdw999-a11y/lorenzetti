@@ -1,99 +1,86 @@
 # CaloClusterBuilder
 
-`CaloClusterBuilder` is a package responsible for reconstructing calorimeter clusters (`CaloCluster`) from digitized calorimeter cells (`CaloCell`). It utilizes a seed-based clustering approach to group cells around initial particle trajectory projection points (seeds). Additionally, it computes key lateral and longitudinal shower shape variables used for electron/photon identification.
+The `CaloClusterBuilder` package is responsible for reconstructing calorimeter clusters (`xAOD::CaloClusterContainer`) from digitized calorimeter cells (`xAOD::CaloCellContainer`) and initial particle trajectory projections (`xAOD::SeedContainer`), while computing lateral and longitudinal shower shape variables for electron and photon identification.
 
 ---
 
-## How It Works
+## 1. Reconstruction Pipeline Architecture
 
-The cluster reconstruction process follows a seed-based seeded-clustering approach:
+The seeded-clustering reconstruction pipeline executes event-by-event:
 
-1. **Seed Processing**: The algorithm iterates over all seeds in the event (`SeedContainer`), typically representing the projection of a particle trajectory into the calorimeter.
-2. **Search for Hottest Cell**: For each seed, it scans cells in the second electromagnetic layer (EM2: `EMB2` and `EMEC2`) within a search window of size `EtaWindow/2` by `PhiWindow/2` centered on the seed's position. The cell with the maximum energy inside this window is selected as the **hottest cell** (shower core).
-3. **Core Energy Validation**: Around the identified hottest cell, the algorithm calculates the total electromagnetic energy in a core region of size $0.1 \times 0.1$. If this core energy is greater than or equal to `MinCenterEnergy`, a new `CaloCluster` is created centered at the hottest cell's $(\eta, \phi)$ coordinates.
-4. **Cell Accumulation**: All calorimeter cells within a window of size `EtaWindow/2` by `PhiWindow/2` around the cluster center are added to the cluster.
-5. **Shower Shape Calculation**: It invokes the `ShowerShapes` tool to compute various lateral and longitudinal variables describing the shower's spatial development.
-
----
-
-## Computed Shower Shapes
-
-The associated `ShowerShapes` tool computes several variables essential for distinguishing electromagnetic showers (electrons/photons) from hadronic jets and background (e.g. $\pi^0 \to \gamma\gamma$):
-
-### Longitudinal Development (Layer Fractions)
-* **`f0` (Pre-Sampler Fraction)**: Fraction of energy deposited in the Pre-Sampler layer (`PSB`, `PSE`).
-* **`f1` (EM1 Fraction)**: Fraction of energy deposited in the first EM layer (`EMB1`, `EMEC1`).
-* **`f3` (EM3 Fraction)**: Fraction of energy deposited in the third EM layer (`EMB3`, `EMEC3`).
-
-### Lateral Development (Middle EM Layer - EM2)
-* **`weta2`**: Lateral width of the shower in $\eta$ within the EM2 layer.
-* **`reta`**: Lateral containment ratio $E(3\times7)/E(7\times7)$ in cells, measuring how narrow the shower is in $\eta$.
-* **`rphi`**: Lateral containment ratio $E(3\times3)/E(3\times7)$ in cells, measuring the shower width in $\phi$ (affected by magnetic field bending).
-
-### Strip EM Layer Development (EM1)
-* **`eratio`**: Energy ratio $(E_{\text{max1}} - E_{\text{max2}}) / (E_{\text{max1}} + E_{\text{max2}})$ of the two highest-energy cell peaks in EM1. Useful for separating single photons from overlapping photons from neutral pion decays ($\pi^0 \to \gamma\gamma$).
-
-### Hadronic Leakage
-* **`rhad`**: Hadronic leakage ratio, calculated as the ratio of hadronic layer energy to the total electromagnetic cluster energy.
-
-### Forward Moments
-When `DoForwardMoments` is enabled, additional moments are calculated for forward calorimeter clusters:
-* **`secondR`**: Second radial moment.
-* **`secondLambda`**: Second longitudinal moment.
-* **`lambdaCenter`**: Distance from the shower center of gravity to the calorimeter front face.
-* **`fracMax`**: Fraction of energy in the hottest cell.
-* **`lateralMom` / `longitudinalMom`**: Lateral and longitudinal moments.
-
----
-
-## Python Configuration
-
-The Python configuration is defined via `CaloClusterMakerCfg` (aliased as `CaloClusterMaker` in `python/CaloClusterMaker.py`).
-
-### Function Signature
-```python
-def CaloClusterMakerCfg(
-    name             : str,
-    InputCellsKey    : str,
-    InputSeedsKey    : str,
-    OutputClusterKey : str,
-    EtaWindow        : float = CaloClusterFlags.EtaWindow,        # Default: 0.4
-    PhiWindow        : float = CaloClusterFlags.PhiWindow,        # Default: 0.4
-    MinCenterEnergy  : float = CaloClusterFlags.MinCenterEnergy,  # Default: 1*GeV
-    DoForwardMoments : bool  = CaloClusterFlags.DoForwardMoments, # Default: False
-    OutputLevel      : str   = 0,
-    HistogramPath    : str   = "Expert/Clusters",
-) -> Configurable:
+```mermaid
+flowchart TD
+    Seeds["xAOD::SeedContainer<br/>('Seeds')"] --> ClusterMaker["CaloClusterMaker<br/>1. Find Hottest Cell in EM2 (EMB2/EMEC2)<br/>2. Validate core energy >= MinCenterEnergy (0.1x0.1)<br/>3. Accumulate cells within EtaWindow/PhiWindow<br/>4. Bind ElementLink<Seed> to parent Seed"]
+    Cells["xAOD::CaloCellContainer<br/>('Cells')"] --> ClusterMaker
+    ClusterMaker --> Shower["ShowerShapes Tool<br/>Calculates layer fractions, Weta2, Reta, Rphi, Rhad, Eratio, Forward Moments"]
+    Shower --> Output["xAOD::CaloClusterContainer<br/>('Clusters')"]
 ```
 
-### Parameters
-* **`name`** (`str`): Name of the configurator tool.
-* **`InputCellsKey`** (`str`): StoreGate key for the input `CaloCellContainer`.
-* **`InputSeedsKey`** (`str`): StoreGate key for the input `SeedContainer`.
-* **`OutputClusterKey`** (`str`): StoreGate key for the output reconstructed `CaloClusterContainer`.
-* **`EtaWindow` / `PhiWindow`** (`float`): Half-size of the rectangular clustering window (the full window size is `Window/2` in each direction).
-* **`MinCenterEnergy`** (`float`): Minimum energy in GeV required in a $0.1 \times 0.1$ window centered on the hottest cell to form a cluster.
-* **`DoForwardMoments`** (`bool`): Flag to enable/disable forward moments computation.
-* **`OutputLevel`** (`int` or `str`): Output log verbosity level.
-* **`HistogramPath`** (`str`): Root path for booking and saving monitoring histograms.
+---
+
+## 2. Algorithms and Tools
+
+### `CaloClusterMaker` (`C++`)
+* **Seed Processing**: Iterates through each particle seed in `xAOD::SeedContainer`.
+* **Hottest Cell Scan**: Searches for the highest-energy cell in the second electromagnetic layer (`EMB2` or `EMEC2`) within a window of size $\Delta\eta < \text{EtaWindow}/2$, $\Delta\phi < \text{PhiWindow}/2$.
+* **Core Energy Validation**: Evaluates whether the central $0.1 \times 0.1$ core energy around the hottest cell satisfies $E_{\text{core}} \ge \text{MinCenterEnergy}$.
+* **Cell Accumulation**: Gathers all cells inside the $(\eta, \phi)$ window into the cluster's cell list.
+* **Relational Linking**: Registers the parent seed in the cluster using `ElementLink<xAOD::Seed>` for persistent cross-referencing in ROOT trees.
+* **Shower Shape Invocation**: Executes `ShowerShapes` to calculate discriminating variables.
+
+### `ShowerShapes` (`C++`)
+Utility `AlgTool` that populates cluster discriminating features:
+* **Longitudinal Development**: `f0` (Pre-Sampler), `f1` (EM1), `f2` (EM2), `f3` (EM3), `ehad1`, `ehad2`, `ehad3`.
+* **Lateral Development (EM2)**: `weta2` (shower width), `reta` ($E_{3\times7}/E_{7\times7}$), `rphi` ($E_{3\times3}/E_{3\times7}$).
+* **Strip Development (EM1)**: `eratio` ($(E_{\text{max1}} - E_{\text{max2}})/(E_{\text{max1}} + E_{\text{max2}})$) for $\gamma / \pi^0$ separation.
+* **Hadronic Leakage**: `rhad` ($E_{\text{had}}/E_{\text{EM}}$), `rhad1`.
+* **Forward Moments (optional)**: `secondR`, `secondLambda`, `lambdaCenter`, `fracMax`, `lateralMom`, `longitudinalMom`.
 
 ---
 
-## Python Configuration Example
+## 3. Configuration Flags
 
-Below is a Python snippet demonstrating how to configure and add `CaloClusterMaker` to a reconstruction job accumulator:
+Global cluster flags are controlled via `CaloClusterFlags`:
+
+* **`MinCenterEnergy`** (`float`, default `1.0 * GeV`): Minimum core energy required around the hottest cell to form a cluster.
+* **`EtaWindow`** (`float`, default `0.4`): Total $\eta$ window size ($\pm 0.2$).
+* **`PhiWindow`** (`float`, default `0.4`): Total $\phi$ window size ($\pm 0.2$).
+* **`DoForwardMoments`** (`bool`, default `False`): Flag to enable forward moment calculations for forward electrons.
+
+---
+
+## 4. Python Configuration
+
+### `CaloClusterMakerCfg`
 
 ```python
+def CaloClusterMakerCfg(
+    name: str,
+    InputCellsKey: str = "Cells",
+    InputSeedsKey: str = "Seeds",
+    OutputClusterKey: str = "Clusters",
+    EtaWindow: float = CaloClusterFlags.EtaWindow,
+    PhiWindow: float = CaloClusterFlags.PhiWindow,
+    MinCenterEnergy: float = CaloClusterFlags.MinCenterEnergy,
+    DoForwardMoments: bool = CaloClusterFlags.DoForwardMoments,
+    OutputLevel: int = LoggingLevel.toC("INFO"),
+    HistogramPath: str = "Expert/Clusters",
+) -> Configurable:
+    ...
+```
+
+### Usage Example
+
+```python
+import ROOT
 from GaugiKernel import LoggingLevel, ComponentAccumulator
-from CaloClusterBuilder import CaloClusterMaker, CaloClusterFlags
 from GaugiKernel.constants import GeV
+from CaloClusterBuilder import CaloClusterMaker, CaloClusterFlags
 
-def configure_clustering_job():
-    # 1. Create a ComponentAccumulator to manage configuration
-    acc = ComponentAccumulator("ClusterJobAccumulator", "output.AOD.root")
-    output_level = LoggingLevel.INFO
+def configure_clustering(acc: ComponentAccumulator) -> None:
+    output_level = LoggingLevel.toC("INFO")
 
-    # 2. Configure the CaloClusterMaker tool for standard cells and seeds
+    # 1. Configure CaloClusterMaker for reconstructed cells
     cluster_maker = CaloClusterMaker(
         "CaloClusterMaker",
         InputCellsKey="Cells",
@@ -101,16 +88,14 @@ def configure_clustering_job():
         OutputClusterKey="Clusters",
         EtaWindow=0.4,
         PhiWindow=0.4,
-        MinCenterEnergy=1.5 * GeV,  # Form cluster if core energy >= 1.5 GeV
+        MinCenterEnergy=1.5 * GeV,
         DoForwardMoments=False,
         OutputLevel=output_level,
-        HistogramPath="Expert/Clusters"
+        HistogramPath="Expert/Clusters",
     )
+    acc += cluster_maker
 
-    # 3. Add configured tool to the accumulator
-    acc.add(cluster_maker)
-
-    # 4. (Optional) Configure another cluster maker for truth cells
+    # 2. (Optional) Configure CaloClusterMaker for truth cells
     truth_cluster_maker = CaloClusterMaker(
         "CaloClusterMaker_Truth",
         InputCellsKey="TruthCells",
@@ -121,13 +106,15 @@ def configure_clustering_job():
         MinCenterEnergy=1.0 * GeV,
         DoForwardMoments=False,
         OutputLevel=output_level,
-        HistogramPath="Expert/TruthClusters"
+        HistogramPath="Expert/TruthClusters",
     )
-    acc.add(truth_cluster_maker)
-
-    return acc
-
-if __name__ == "__main__":
-    job_acc = configure_clustering_job()
-    print("CaloClusterBuilder configuration completed successfully!")
+    acc += truth_cluster_maker
 ```
+
+---
+
+## 5. Dependencies
+* `core/GaugiKernel`: Algorithm and AlgTool base classes, StoreGate `EventContext`, Data Handles, `ElementLink`.
+* `events/CaloCell`: `xAOD::CaloCell`, `xAOD::CaloCellContainer`, `xAOD::CaloDetDescriptor`.
+* `events/EventInfo`: `xAOD::Seed`, `xAOD::SeedContainer`.
+* `events/CaloCluster`: `xAOD::CaloCluster`, `xAOD::CaloClusterContainer`.

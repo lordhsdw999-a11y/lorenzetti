@@ -1,0 +1,199 @@
+#ifndef ElementLink_icc
+#define ElementLink_icc
+
+#include "GaugiKernel/Collection.h"
+
+namespace SG {
+
+  template <typename TargetT>
+  ElementLink<TargetT>::ElementLink() :
+    m_targetKey(""),
+    m_keyHash(0),
+    m_index(0),
+    m_owner(nullptr),
+    m_cachedPtr(nullptr),
+    m_isResolved(false)
+  {}
+
+  template <typename TargetT>
+  ElementLink<TargetT>::ElementLink(const std::string& key, uint32_t index, const Gaugi::EDM* owner) :
+    m_targetKey(key),
+    m_keyHash(Gaugi::stringHash(key)),
+    m_index(index),
+    m_owner(owner),
+    m_cachedPtr(nullptr),
+    m_isResolved(false)
+  {}
+
+  template <typename TargetT>
+  ElementLink<TargetT>::ElementLink(uint64_t keyHash, uint32_t index, const Gaugi::EDM* owner) :
+    m_targetKey(""),
+    m_keyHash(keyHash),
+    m_index(index),
+    m_owner(owner),
+    m_cachedPtr(nullptr),
+    m_isResolved(false)
+  {}
+
+  template <typename TargetT>
+  ElementLink<TargetT>::ElementLink(const std::string& key, uint32_t index, const TargetT* target, const Gaugi::EDM* owner) :
+    m_targetKey(key),
+    m_keyHash(Gaugi::stringHash(key)),
+    m_index(index),
+    m_owner(owner),
+    m_cachedPtr(target),
+    m_isResolved(target != nullptr)
+  {}
+
+  template <typename TargetT>
+  ElementLink<TargetT>::ElementLink(const ElementLink& other) :
+    m_targetKey(other.m_targetKey),
+    m_keyHash(other.m_keyHash),
+    m_index(other.m_index),
+    m_owner(other.m_owner),
+    m_cachedPtr(other.m_cachedPtr),
+    m_isResolved(other.m_isResolved)
+  {}
+
+  template <typename TargetT>
+  ElementLink<TargetT>& ElementLink<TargetT>::operator=(const ElementLink& other) {
+    if (this != &other) {
+      m_targetKey  = other.m_targetKey;
+      m_keyHash    = other.m_keyHash;
+      m_index      = other.m_index;
+      m_owner      = other.m_owner;
+      m_cachedPtr  = other.m_cachedPtr;
+      m_isResolved = other.m_isResolved;
+    }
+    return *this;
+  }
+
+  template <typename TargetT>
+  const TargetT* ElementLink<TargetT>::operator->() const {
+    return get();
+  }
+
+  template <typename TargetT>
+  const TargetT& ElementLink<TargetT>::operator*() const {
+    const TargetT* ptr = get();
+    if (!ptr) {
+      throw std::runtime_error("ElementLink: Attempted to dereference a null/unresolved link!");
+    }
+    return *ptr;
+  }
+
+  template <typename TargetT>
+  const TargetT* ElementLink<TargetT>::get() const {
+    if (!m_isResolved) {
+      resolve();
+    }
+    return m_cachedPtr;
+  }
+
+  template <typename TargetT>
+  bool ElementLink<TargetT>::isValid() const {
+    return (get() != nullptr);
+  }
+
+  template <typename TargetT>
+  bool ElementLink<TargetT>::isDefault() const {
+    return (m_targetKey.empty() && m_keyHash == 0 && m_index == 0 && m_cachedPtr == nullptr);
+  }
+
+  template <typename TargetT>
+  void ElementLink<TargetT>::setElement(const std::string& key, uint32_t index, const TargetT* target) {
+    m_targetKey  = key;
+    m_keyHash    = Gaugi::stringHash(key);
+    m_index      = index;
+    m_cachedPtr  = target;
+    m_isResolved = (target != nullptr);
+  }
+
+  template <typename TargetT>
+  void ElementLink<TargetT>::setElement(uint64_t keyHash, uint32_t index, const TargetT* target) {
+    m_targetKey  = "";
+    m_keyHash    = keyHash;
+    m_index      = index;
+    m_cachedPtr  = target;
+    m_isResolved = (target != nullptr);
+  }
+
+  template <typename TargetT>
+  void ElementLink<TargetT>::resetCache() const {
+    m_cachedPtr = nullptr;
+    m_isResolved = false;
+  }
+
+  template <typename TargetT>
+  void ElementLink<TargetT>::resolve() const {
+    // 1. If pointer is already cached, mark resolved
+    if (m_cachedPtr) {
+      m_isResolved = true;
+      return;
+    }
+
+    // 2. If link is uninitialized, resolve to null
+    if (m_targetKey.empty() && m_keyHash == 0) {
+      m_cachedPtr = nullptr;
+      m_isResolved = true;
+      return;
+    }
+
+    // 3. Obtain EventContext from owner EDM element hierarchy
+    if (!m_owner) {
+      m_cachedPtr = nullptr;
+      m_isResolved = true;
+      return;
+    }
+
+    const auto* parentContainer = m_owner->container();
+    if (!parentContainer) {
+      m_cachedPtr = nullptr;
+      m_isResolved = true;
+      return;
+    }
+
+    auto* ctx = parentContainer->getContext();
+    if (!ctx) {
+      m_cachedPtr = nullptr;
+      m_isResolved = true;
+      return;
+    }
+
+    // 4. Try retrieving target DataVector from EventContext
+    const SG::DataVector<TargetT>* targetVector = nullptr;
+
+    if (!m_targetKey.empty()) {
+      targetVector = ctx->get<SG::DataVector<TargetT>>(m_targetKey);
+    }
+    if (!targetVector && m_keyHash != 0) {
+      targetVector = ctx->get<SG::DataVector<TargetT>>(m_keyHash);
+    }
+
+    if (targetVector && m_index < targetVector->size()) {
+      m_cachedPtr = targetVector->at(m_index);
+      m_isResolved = true;
+      return;
+    }
+
+    // 5. If not found in DataVector, check if stored in SG::Collection<TargetT> (by hash ID)
+    const SG::Collection<TargetT>* targetCollection = nullptr;
+    if (!m_targetKey.empty()) {
+      targetCollection = ctx->get<SG::Collection<TargetT>>(m_targetKey);
+    }
+    if (!targetCollection && m_keyHash != 0) {
+      targetCollection = ctx->get<SG::Collection<TargetT>>(m_keyHash);
+    }
+
+    if (targetCollection && targetCollection->count(m_index)) {
+      m_cachedPtr = targetCollection->at(m_index);
+    } else {
+      m_cachedPtr = nullptr;
+    }
+
+    m_isResolved = true;
+  }
+
+} // namespace SG
+
+#endif

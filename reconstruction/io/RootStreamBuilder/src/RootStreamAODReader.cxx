@@ -204,7 +204,6 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
   }
 
   MSG_DEBUG("Deserialize Seed...");
-  xAOD::seed_links_t seed_links;
 
   { // deserialize Seed
     SG::WriteHandle<xAOD::SeedContainer> container(m_seedsKey, ctx);
@@ -217,7 +216,6 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
       cnv.convert(seed_t, seed);
       MSG_DEBUG("Seed in eta = " << seed->eta() << ", phi = " << seed->phi());
       container->push_back(seed);
-      seed_links[seed->id()] = seed;
     }
   }
 
@@ -249,37 +247,22 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
     container_truth_el.record(std::unique_ptr<xAOD::ElectronContainer>(new xAOD::ElectronContainer()));
 
     xAOD::CaloClusterConverter clus_cnv;
-    // xAOD::CaloRingsConverter rings_cnv;
     xAOD::ElectronConverter el_cnv;
-
     xAOD::CaloCellConverter truth_cells_cnv;
     xAOD::CaloClusterConverter truth_clus_cnv;
-    xAOD::CaloRingsConverter truth_rings_cnv;
-
-    xAOD::cluster_links_t clus_links;
     xAOD::CaloRingsConverter rings_cnv;
+
     for (auto &clus_t : *collection_clus)
     {
       xAOD::CaloCluster *clus = nullptr;
       clus_cnv.convert(clus_t, clus);
-      clus->setSeed(seed_links[clus_t.seed_link]);
       container_clus->push_back(clus);
-      clus_links[clus->seed()->id()] = clus;
     }
-
-    // for (auto &rings_t : *collection_rings)
-    // {
-    //   xAOD::CaloRings *rings = nullptr;
-    //   rings_cnv.convert(rings_t, rings);
-    //   rings->setCaloCluster(clus_links[rings_t.cluster_link]);
-    //   container_rings->push_back(rings);
-    // }
 
     for (auto &el_t : *collection_el)
     {
       xAOD::Electron *el = nullptr;
       el_cnv.convert(el_t, el);
-      el->setCaloCluster(clus_links[el_t.cluster_link]);
       container_el->push_back(el);
     }
 
@@ -287,52 +270,22 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
     {
       xAOD::CaloRings *rings = nullptr;
       rings_cnv.convert(rings_t, rings);
-      if (clus_links.count(rings_t.cluster_link))
-      {
-        rings->setCaloCluster(clus_links[rings_t.cluster_link]);
-      }
       container_rings_l0->push_back(rings);
     }
-
-    xAOD::cluster_links_t truth_clus_links;
 
     for (auto &truth_clus_t : *collection_truth_clus)
     {
       xAOD::CaloCluster *truth_clus = nullptr;
       truth_clus_cnv.convert(truth_clus_t, truth_clus);
-
-      if (seed_links.count(truth_clus_t.seed_link))
-      {
-        truth_clus->setSeed(seed_links[truth_clus_t.seed_link]);
-        truth_clus_links[truth_clus->seed()->id()] = truth_clus;
-      }
-
       container_truth_clus->push_back(truth_clus);
     }
-
-    // for (auto &truth_rings_t : *collection_truth_rings)
-    // {
-    //   xAOD::CaloRings *truth_rings = nullptr;
-    //   truth_rings_cnv.convert(truth_rings_t, truth_rings);
-
-    //   if (truth_clus_links.count(truth_rings_t.cluster_link))
-    //   {
-    //     truth_rings->setCaloCluster(truth_clus_links[truth_rings_t.cluster_link]);
-    //   }
-    //   container_truth_rings->push_back(truth_rings);
-    // }
 
     for (auto &el_t : *collection_truth_el)
     {
       xAOD::Electron *el = nullptr;
       el_cnv.convert(el_t, el);
-      if (truth_clus_links.count(el_t.cluster_link))
-      {
-        el->setCaloCluster(truth_clus_links[el_t.cluster_link]);
-      }
       container_truth_el->push_back(el);
     }
-    // inside the deserialization block, replace the single rings WriteHandle with a loop:
 
     for (size_t i = 0; i < m_ringerKeys.size(); ++i)
     {
@@ -344,7 +297,6 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
         {
           xAOD::CaloRings *rings = nullptr;
           rings_cnv.convert(rings_t, rings);
-          rings->setCaloCluster(clus_links[rings_t.cluster_link]);
           container_rings->push_back(rings);
         }
       }
@@ -360,8 +312,6 @@ StatusCode RootStreamAODReader::deserialize(int evt, EventContext &ctx) const
         {
           xAOD::CaloRings *rings = nullptr;
           rings_cnv.convert(rings_t, rings);
-          if (truth_clus_links.count(rings_t.cluster_link))
-            rings->setCaloCluster(truth_clus_links[rings_t.cluster_link]);
           container_truth_rings->push_back(rings);
         }
       }

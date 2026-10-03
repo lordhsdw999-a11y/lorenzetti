@@ -1,9 +1,9 @@
-
 #include "CaloCell/CaloCellContainer.h"
 #include "CaloCell/CaloDetDescriptorCollection.h"
-
+#include "CaloCell/CaloDetDescriptorContainer.h"
 #include "CaloCellMerge.h"
 #include "TVector3.h"
+#include <cmath>
 #include <cstdlib>
 
 #include "TCanvas.h"
@@ -11,81 +11,66 @@
 #include "TH2F.h"
 #include "TH2Poly.h"
 
-
 using namespace Gaugi;
 using namespace SG;
 
-
 /**
  * @class CaloCellMerge
- * @brief Algorithm to merge multiple cell collections into a single container.
+ * @brief Merges partial calorimeter descriptor collections into unified CaloCellContainers and master CaloDetDescriptorContainer.
  * 
- * This algorithm gathers partial cell collections (e.g. from different samplings
- * like EMB1, EMB2, Tile1, etc.) produced by separate CaloCellMaker instances
- * and merges them into a single global CaloCellContainer. It handles both
- * reconstructed cells and truth cells.
- * 
- * Properties:
- * - InputCollectionKeys: List of keys for the partial collections.
- * - OutputCellsKey: Key for the final merged reconstructed cell container.
- * - OutputTruthCellsKey: Key for the final merged truth cell container.
+ * Collects descriptors from multiple calorimeter samplings (e.g. EMB1, EMB2, Tile1, etc.)
+ * created by separate CaloCellMaker instances, attaches them to a master CaloDetDescriptorContainer (DataVector),
+ * creates xAOD::CaloCell objects (truth and reco), sets relational ElementLinks to the master
+ * descriptor container, and pushes them into the output containers.
  */
-CaloCellMerge::CaloCellMerge( std::string name ) : 
+CaloCellMerge::CaloCellMerge(std::string name) : 
   IMsgService(name),
   Algorithm()
 {
-  declareProperty( "InputCollectionKeys"    , m_collectionKeys={}           );
-  declareProperty( "OutputCellsKey"         , m_cellsKey="Cells"            );
-  declareProperty( "OutputTruthCellsKey"    , m_truthCellsKey="TruthCells"  );
-  declareProperty( "OutputLevel"            , m_outputLevel=1               );
+  declareProperty("InputCollectionKeys", m_collectionKeys = {});
+  declareProperty("OutputCellsKey", m_cellsKey = "Cells");
+  declareProperty("OutputTruthCellsKey", m_truthCellsKey = "TruthCells");
+  declareProperty("OutputDescriptorsKey", m_descriptorsKey = "CaloDetDescriptors");
+  declareProperty("FilterEmptyCells", m_filterEmptyCells = false);
+  declareProperty("MinEnergy", m_minEnergy = 0.0);
+  declareProperty("OutputLevel", m_outputLevel = 1);
 }
 
 //!=====================================================================
 
-CaloCellMerge::~CaloCellMerge()
-{;}
-
-//!=====================================================================
-
-StatusCode CaloCellMerge::initialize()
-{
+StatusCode CaloCellMerge::initialize() {
   CHECK_INIT();
-  setMsgLevel( m_outputLevel );
+  setMsgLevel((MSG::Level)m_outputLevel);
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::finalize()
-{
+StatusCode CaloCellMerge::finalize() {
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::bookHistograms( SG::EventContext &/*ctx*/ ) const
-{
+StatusCode CaloCellMerge::bookHistograms(SG::EventContext &/*ctx*/) const {
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::pre_execute( EventContext &/*ctx*/ ) const
-{
+StatusCode CaloCellMerge::pre_execute(EventContext &/*ctx*/) const {
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::execute( EventContext &/*ctx*/ , const G4Step * /*step*/ ) const
-{
+StatusCode CaloCellMerge::execute(EventContext &/*ctx*/, const G4Step * /*step*/) const {
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::execute( EventContext &ctx , int /*evt*/ ) const
-{
+StatusCode CaloCellMerge::execute(EventContext &ctx, int /*evt*/) const {
   return post_execute(ctx);
 }
 
@@ -94,82 +79,91 @@ StatusCode CaloCellMerge::execute( EventContext &ctx , int /*evt*/ ) const
 /**
  * @brief Core merge logic.
  * 
- * Iterates through all input keys, retrieves the corresponding `CaloDetDescriptorCollection`,
- * creates new `xAOD::CaloCell` objects (copying info from descriptors), and pushes them
- * into the output containers.
+ * Iterates through all input collection keys, retrieves each `CaloDetDescriptorCollection`,
+ * appends descriptors into the master `CaloDetDescriptorContainer` (DataVector), creates new
+ * `xAOD::CaloCell` objects (for both truth and reconstruction), attaches the
+ * `ElementLink<CaloDetDescriptor>` referencing the master descriptor container key and index, and stores them.
  */
-StatusCode CaloCellMerge::post_execute( EventContext &ctx ) const
-{
+StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
+  MSG_DEBUG("Starting collection merge algorithm...");
 
-  MSG_DEBUG( "Starting collection merge algorithm..." );
+  MSG_DEBUG("Creating master descriptors container with key " << m_descriptorsKey);
+  SG::WriteHandle<xAOD::CaloDetDescriptorContainer> descContainer(m_descriptorsKey, ctx);
+  descContainer.record(std::unique_ptr<xAOD::CaloDetDescriptorContainer>(new xAOD::CaloDetDescriptorContainer()));
 
-  MSG_DEBUG( "Creating reco cells containers with key " << m_cellsKey);
-  SG::WriteHandle<xAOD::CaloCellContainer> recoContainer( m_cellsKey , ctx );
-  recoContainer.record( std::unique_ptr<xAOD::CaloCellContainer>(new xAOD::CaloCellContainer()) );
+  MSG_DEBUG("Creating reco cells container with key " << m_cellsKey);
+  SG::WriteHandle<xAOD::CaloCellContainer> recoContainer(m_cellsKey, ctx);
+  recoContainer.record(std::unique_ptr<xAOD::CaloCellContainer>(new xAOD::CaloCellContainer()));
   
-  MSG_DEBUG( "Creating truth cells containers with key " << m_truthCellsKey);
-  SG::WriteHandle<xAOD::CaloCellContainer> truthContainer( m_truthCellsKey , ctx );
-  truthContainer.record( std::unique_ptr<xAOD::CaloCellContainer>(new xAOD::CaloCellContainer()) );
+  MSG_DEBUG("Creating truth cells container with key " << m_truthCellsKey);
+  SG::WriteHandle<xAOD::CaloCellContainer> truthContainer(m_truthCellsKey, ctx);
+  truthContainer.record(std::unique_ptr<xAOD::CaloCellContainer>(new xAOD::CaloCellContainer()));
 
-
-  //unsigned long int hash = 0;
-
-  for ( auto key : m_collectionKeys ){
-
-    MSG_DEBUG( "Reading all cells from collection with key " << key );
-    SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection( key, ctx );
+  for (const auto &key : m_collectionKeys) {
+    MSG_DEBUG("Reading all cells from collection with key " << key);
+    SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection(key, ctx);
     
-    if( !collection.isValid() ){
-      MSG_WARNING( "It's not possible to read the xAOD::CaloCellCollection from this Context using this key: " << key );
+    if (!collection.isValid()) {
+      MSG_WARNING("It's not possible to read xAOD::CaloDetDescriptorCollection with key: " << key);
       continue;
     }
 
-    MSG_DEBUG( "Creating new cells and attach the object into the container" ); 
-    for (const auto &pair : **collection.ptr() )
-    {
-      // descriptor Cell with all geant/bunch/pulse information
-      const xAOD::CaloDetDescriptor* descriptor=pair.second;
+    MSG_DEBUG("Creating new cells and attaching descriptors to master container"); 
+    for (const auto &pair : **collection.ptr()) {
+      const xAOD::CaloDetDescriptor *const_descriptor = pair.second;
+      if (!const_descriptor) {
+        continue;
+      }
+
+      // Clone descriptor into a new instance owned by master descContainer (DataVector)
+      auto descriptor = new xAOD::CaloDetDescriptor(*const_descriptor);
+      uint32_t desc_index = static_cast<uint32_t>(descContainer->size());
+      descContainer->push_back(descriptor);
      
-      // Create the truth cell 
-      auto truth_cell = new xAOD::CaloCell();
+      // 1. Create the truth cell (deposited energy from simulation)
+      float truth_e = const_descriptor->edep();
+      if (!m_filterEmptyCells || truth_e > m_minEnergy) {
+        auto truth_cell = new xAOD::CaloCell();
+        truth_cell->setEta(const_descriptor->eta());
+        truth_cell->setPhi(const_descriptor->phi());
+        truth_cell->setDeltaEta(const_descriptor->deltaEta());
+        truth_cell->setDeltaPhi(const_descriptor->deltaPhi());
+        truth_cell->setE(truth_e);
+        truth_cell->setEt(truth_cell->e() / std::cosh(truth_cell->eta()));
+        truth_cell->setTau(-1.0);
+        
+        // Set the descriptor ElementLink with master descriptor container key and index
+        truth_cell->setDescriptor(m_descriptorsKey, desc_index, descriptor);
+        truthContainer->push_back(truth_cell);
+      }
 
-      truth_cell->setEta( descriptor->eta() );
-      truth_cell->setPhi( descriptor->phi() );
-      truth_cell->setDeltaEta( descriptor->deltaEta() );
-      truth_cell->setDeltaPhi( descriptor->deltaPhi() );
-      truth_cell->setE( descriptor->edep() ); // The truth will be the energy deposity
-      truth_cell->setEt( truth_cell->e() / std::cosh( truth_cell->eta() ) );
-      truth_cell->setTau( -1 );
-      
-      truth_cell->setDescriptor( descriptor );
-      truthContainer->push_back( truth_cell );
+      // 2. Create the reconstructed cell (estimated energy from Optimal Filter)
+      float reco_e = const_descriptor->e();
+      if (!m_filterEmptyCells || reco_e > m_minEnergy) {
+        auto cell = new xAOD::CaloCell();
+        cell->setEta(const_descriptor->eta());
+        cell->setPhi(const_descriptor->phi());
+        cell->setDeltaEta(const_descriptor->deltaEta());
+        cell->setDeltaPhi(const_descriptor->deltaPhi());
+        cell->setE(reco_e);
+        cell->setEt(cell->e() / std::cosh(cell->eta()));
+        cell->setTau(const_descriptor->tau());
 
-      // Create the Reco cell
-      auto cell = new xAOD::CaloCell();
-      cell->setEta( descriptor->eta() );
-      cell->setPhi( descriptor->phi() );
-      cell->setDeltaEta( descriptor->deltaEta() );
-      cell->setDeltaPhi( descriptor->deltaPhi() );
-      cell->setE( descriptor->e() ); // Estimated energy from OF
-      cell->setEt( cell->e() / std::cosh( cell->eta() ) );
-      cell->setTau( descriptor->tau());
+        // Set the descriptor ElementLink with master descriptor container key and index
+        cell->setDescriptor(m_descriptorsKey, desc_index, descriptor);
+        recoContainer->push_back(cell);
+      }
+    } // Loop over all descriptors in collection
+  } // Loop over all collection keys
 
-      cell->setDescriptor( descriptor );
-      recoContainer->push_back( cell );
-
-    }// Loop over all descriptorCells
-  }// Loop over all collections
-
-  MSG_DEBUG( "All collections were merged into two CaloCellContainer" );
+  MSG_DEBUG("Merged cells into containers: " << recoContainer->size() << " reco cells, " 
+            << truthContainer->size() << " truth cells, "
+            << descContainer->size() << " master descriptors.");
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
-StatusCode CaloCellMerge::fillHistograms( EventContext & /*ctx*/ ) const
-{
+StatusCode CaloCellMerge::fillHistograms(EventContext & /*ctx*/) const {
   return StatusCode::SUCCESS;
 }
-
-
-

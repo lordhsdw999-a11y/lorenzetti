@@ -1,210 +1,202 @@
+"""
+CaloCellBuilder module.
+
+Provides the high-level CaloCellBuilder coordinator class that orchestrates
+the complete calorimeter digitization chain across all configured samplings.
+"""
+
+from typing import Any, List, Optional
+import ROOT
+
+from GaugiKernel import Logger, LoggingLevel, Configurable
+from GaugiKernel.macros import MSG_INFO
+from CaloCell import CaloSampling, Detector
+from CaloCellBuilder.PulsePerturber import PulsePerturberCfg
+from CaloCellBuilder.CaloCellMaker import CaloCellMakerCfg
+from CaloCellBuilder.CaloFlags import CaloFlags, CrossTalkFlags, AnomalyFlags
 
 __all__ = ["CaloCellBuilder"]
 
-import ROOT
 
-from GaugiKernel        import Logger, LoggingLevel, Configurable
-from GaugiKernel.macros import *
-
-from CaloCell           import CaloSampling, Detector
-from CaloCellBuilder    import PulsePerturberCfg, CaloCellMakerCfg
-from CaloCellBuilder    import CaloFlags, CrossTalkFlags, AnomalyFlags
-
-#
-# Calo cell builder
-#
-class CaloCellBuilder( Logger ):
-  """
-  A high-level configuration builder for the Calorimeter Digitization chain.
-
-  This class orchestrates the creation of algorithms that transform energy hits
-  into digital signals (cells). It handles:
-  - Pulse shape simulation (PulseGenerator)
-  - Electronic noise injection
-  - Optimal Filtering (OF) for energy/time reconstruction
-  - Cross-talk simulation
-  - Defect/Anomaly injection
-  - Merging of cell collections into a single container.
-  """
-
-  def __init__( self, name, 
-                      detector,
-                      HistogramPath        = "Expert", 
-                      InputHitsKey         = "Hits",
-                      OutputCellsKey       = "Cells",
-                      OutputTruthCellsKey  = "TruthCells",
-                      InputEventKey        = "Events",
-                      OutputLevel          = LoggingLevel.toC('INFO'),
-                      ):
+class CaloCellBuilder(Logger):
     """
-    Initialize the CaloCellBuilder.
+    A high-level configuration builder for the Calorimeter Digitization chain.
 
-    Args:
-        name (str): Name of the builder instance.
-        detector (DetectorConstruction): The detector geometry configuration object.
-        HistogramPath (str): Path in the output ROOT file for monitoring histograms.
-        InputHitsKey (str): StoreGate key for input hits.
-        OutputCellsKey (str): StoreGate key for output reconstructed cells.
-        OutputTruthCellsKey (str): StoreGate key for truth information of cells.
-        InputEventKey (str): StoreGate key for event headers.
-        OutputLevel (int): Logging verbosity level.
+    This class orchestrates the creation of algorithms that transform simulated energy hits
+    into reconstructed digital calorimeter cells. It configures:
+    - Pulse shape simulation (PulseGenerator)
+    - Electronic noise injection
+    - Optimal Filtering (OF / COF) for energy/time reconstruction
+    - Cross-talk simulation (CrossTalkMaker)
+    - Defect/Anomaly injection (PulsePerturber)
+    - Merging of cell collections into global CaloCellContainers and master CaloDetDescriptorCollection (CaloCellMerge).
     """
 
-    Logger.__init__(self, name)
-    self.HistogramPath       = HistogramPath
-    self.OutputLevel         = OutputLevel
-    self.InputHitsKey        = InputHitsKey
-    self.InputEventKey       = InputEventKey
-    self.OutputCellsKey      = OutputCellsKey
-    self.OutputTruthCellsKey = OutputTruthCellsKey
-    self.Detector            = detector
-    self.OutputCollectionKeys= []
-    self.RecoAlgs            = []
+    def __init__(
+        self,
+        name: str,
+        detector: Any,
+        HistogramPath: str = "Expert",
+        InputHitsKey: str = "Hits",
+        OutputCellsKey: str = "Cells",
+        OutputTruthCellsKey: str = "TruthCells",
+        OutputDescriptorsKey: str = "CaloDetDescriptors",
+        InputEventKey: str = "Events",
+        FilterEmptyCells: bool = False,
+        MinEnergy: float = 0.0,
+        OutputLevel: int = LoggingLevel.toC("INFO"),
+    ) -> None:
+        """
+        Initializes the CaloCellBuilder.
 
-    
-  def configure(self):
-    """
-    Internal method to instantiate and configure the digitization algorithms.
-    
-    Iterates over all calorimeter samplings defined in the detector geometry
-    and creates specific algorithms (CaloCellMaker) for each. Configures
-    pulse generation, optimal filtering, and optional effects like cross-talk
-    and anomalies.
-    """
+        Args:
+            name: Name of the builder instance.
+            detector: The detector geometry configuration object containing samplings.
+            HistogramPath: Root path in the histogram service for monitoring.
+            InputHitsKey: StoreGate key for input hits container.
+            OutputCellsKey: StoreGate key for output reconstructed cells container.
+            OutputTruthCellsKey: StoreGate key for output truth cells container.
+            OutputDescriptorsKey: StoreGate key for master descriptor collection.
+            InputEventKey: StoreGate key for event headers.
+            FilterEmptyCells: If True, discards cells with energy <= MinEnergy.
+            MinEnergy: Minimum energy threshold for cell retention in MeV.
+            OutputLevel: Logging verbosity level.
+        """
+        super().__init__(name)
+        self.HistogramPath: str = HistogramPath
+        self.OutputLevel: int = OutputLevel
+        self.InputHitsKey: str = InputHitsKey
+        self.InputEventKey: str = InputEventKey
+        self.OutputCellsKey: str = OutputCellsKey
+        self.OutputTruthCellsKey: str = OutputTruthCellsKey
+        self.OutputDescriptorsKey: str = OutputDescriptorsKey
+        self.FilterEmptyCells: bool = FilterEmptyCells
+        self.MinEnergy: float = MinEnergy
+        self.Detector: Any = detector
+        self.OutputCollectionKeys: List[str] = []
+        self.RecoAlgs: List[Configurable] = []
 
-    MSG_INFO(self, "Configure CaloCellBuilder.")
-  
-    for samp in self.Detector.samplings:
+    def configure(self) -> None:
+        """
+        Instantiates and configures all digitization and reconstruction algorithms.
 
-      DoCrosstalk = True if CaloFlags.DoCrossTalk and (samp.Sampling == CaloSampling.EMEC2 or samp.Sampling == CaloSampling.EMB2) else False
+        Iterates over all calorimeter samplings defined in the detector geometry,
+        sets up pulse generation, optimal filtering, cross-talk, anomaly injection,
+        and finally the master CaloCellMerge algorithm.
+        """
+        MSG_INFO(self, "Configure CaloCellBuilder.")
 
-      print('sampling noise: ', samp.Noise)
+        for samp in self.Detector.samplings:
+            do_crosstalk: bool = (
+                CaloFlags.DoCrossTalk
+                and (samp.Sampling == CaloSampling.EMEC2 or samp.Sampling == CaloSampling.EMB2)
+            )
 
-      MSG_INFO(self, "Create new CaloCellMaker and dump all cells into %s collection", samp.CollectionKey)
+            MSG_INFO(
+                self,
+                f"Create new CaloCellMaker and dump all cells into {samp.CollectionKey} collection",
+            )
 
-      pulse = Configurable(
-        ROOT.PulseGenerator, 
-        "PulseGenerator", 
-        NSamples        = samp.Samples, 
-        ShaperFile      = samp.Shaper,
-        OutputLevel     = self.OutputLevel,
-        SamplingRate    = 25.0,
-        Pedestal        = 0.0,
-        DeformationMean = 0.0, 
-        DeformationStd  = 0.0,
-        NoiseMean       = 0.0,
-        NoiseStd        = samp.Noise,
-        StartSamplingBC = samp.StartSamplingBC, 
-      )
-     
+            pulse: Configurable = Configurable(
+                ROOT.PulseGenerator,
+                "PulseGenerator",
+                NSamples=samp.Samples,
+                ShaperFile=samp.Shaper,
+                OutputLevel=self.OutputLevel,
+                SamplingRate=25.0,
+                Pedestal=0.0,
+                DeformationMean=0.0,
+                DeformationStd=0.0,
+                NoiseMean=0.0,
+                NoiseStd=samp.Noise,
+                StartSamplingBC=samp.StartSamplingBC,
+            )
 
-      if CaloFlags.DoCOF and samp.Detector == Detector.TILE: 
-        of = Configurable(
-          ROOT.ConstrainedOptimalFilter, 
-          "ConstrainedOptimalFiler",
-          NSamples        = samp.Samples,
-          PulsePath       = samp.Shaper,
-          Threshold       = 0,
-          SamplingRate    = 25.0,
-          StartSamplingBC = samp.StartSamplingBC,
+            if CaloFlags.DoCOF and samp.Detector == Detector.TILE:
+                of: Configurable = Configurable(
+                    ROOT.ConstrainedOptimalFilter,
+                    "ConstrainedOptimalFilter",
+                    NSamples=samp.Samples,
+                    PulsePath=samp.Shaper,
+                    Threshold=0,
+                    SamplingRate=25.0,
+                    StartSamplingBC=samp.StartSamplingBC,
+                )
+            else:
+                of = Configurable(
+                    ROOT.OptimalFilter,
+                    "OptimalFilter",
+                    WeightsEnergy=samp.OFWeightsEnergy,
+                    WeightsTime=samp.OFWeightsTime,
+                    OutputLevel=self.OutputLevel,
+                )
+
+            maker: Configurable = CaloCellMakerCfg(
+                f"CaloCellMaker_{samp.CollectionKey}",
+                samp,
+                InputHitsKey=self.InputHitsKey,
+                OutputCollectionKey=(
+                    f"{samp.CollectionKey}_Aux" if do_crosstalk else samp.CollectionKey
+                ),
+                HistogramPath=f"{self.HistogramPath}/{samp.name()}",
+                OutputLevel=self.OutputLevel,
+                DetailedHistograms=False,
+            )
+
+            maker.PulseGenerator = pulse
+
+            if CaloFlags.DoDefects:
+                anomaly: Configurable = PulsePerturberCfg(
+                    f"PulsePerturber_{samp.CollectionKey}",
+                    InputEventKey=self.InputEventKey,
+                    NoiseMean=pulse.NoiseMean,
+                    NoiseStd=pulse.NoiseStd,
+                    BadRunListFile=AnomalyFlags.BadRunListFile,
+                )
+                maker.Tools += [anomaly]
+
+            maker.Tools += [of]
+            self.RecoAlgs.append(maker)
+
+            if do_crosstalk:
+                cx: Configurable = Configurable(
+                    ROOT.CrossTalkMaker,
+                    f"CrossTalkMaker_{samp.CollectionKey}",
+                    InputCollectionKey=f"{samp.CollectionKey}_Aux",
+                    OutputCollectionKey=samp.CollectionKey,
+                    MinEnergy=CrossTalkFlags.MinEnergy,
+                    AmpCapacitive=CaloFlags.AmpCapacitive,
+                    AmpInductive=CaloFlags.AmpInductive,
+                    AmpResistive=CaloFlags.AmpResistive,
+                    HistogramPath=f"{self.HistogramPath}/CrossTalk",
+                    OutputLevel=self.OutputLevel,
+                )
+                self.RecoAlgs.append(cx)
+
+            self.OutputCollectionKeys.append(samp.CollectionKey)
+
+        # Merge all collections into unified containers and split between truth and reco
+        merge: Configurable = Configurable(
+            ROOT.CaloCellMerge,
+            "CaloCellMerge",
+            InputCollectionKeys=self.OutputCollectionKeys,
+            OutputTruthCellsKey=self.OutputTruthCellsKey,
+            OutputCellsKey=self.OutputCellsKey,
+            OutputDescriptorsKey=self.OutputDescriptorsKey,
+            FilterEmptyCells=self.FilterEmptyCells,
+            MinEnergy=self.MinEnergy,
+            OutputLevel=self.OutputLevel,
         )
-      else:
-        of= Configurable(
-          ROOT.OptimalFilter, 
-          "OptimalFilter",
-          WeightsEnergy  = samp.OFWeightsEnergy,
-          WeightsTime    = samp.OFWeightsTime,
-          OutputLevel    = self.OutputLevel
-        )
-    
-      maker = CaloCellMakerCfg(
-        "CaloCellMaker_" + samp.CollectionKey, 
-        samp,
-        # input key
-        InputHitsKey            =  self.InputHitsKey, # hits
-        # output key
-        OutputCollectionKey     = samp.CollectionKey + "_Aux" if DoCrosstalk else samp.CollectionKey, # descriptors
-        # monitoring configuration
-        HistogramPath           = self.HistogramPath + '/' + samp.name(),
-        OutputLevel             = self.OutputLevel,
-        DetailedHistograms      = False, # Use True when debug with only one thread
-        )
-  
-      maker.PulseGenerator = pulse # for all cell
-      
-      if CaloFlags.DoDefects:
-          anomaly = PulsePerturberCfg( 
-            "PulsePerturber_" + samp.CollectionKey,
-            InputEventKey = self.InputEventKey,
-            NoiseMean = pulse.NoiseMean,
-            NoiseStd = pulse.NoiseStd,
-            BadRunListFile = AnomalyFlags.BadRunListFile
-          )
-          maker.Tools += [anomaly] # for each cel
-      
-      maker.Tools += [of]  # for each cell
-      
-      self.RecoAlgs+=[maker]
 
+        self.RecoAlgs.append(merge)
 
-      if DoCrosstalk:
-          cx = Configurable(
-            ROOT.CrossTalkMaker,
-            "CrossTalkMaker_" + samp.CollectionKey,
-            InputCollectionKey    = samp.CollectionKey + "_Aux",
-            OutputCollectionKey   = samp.CollectionKey,
-            MinEnergy             = CrossTalkFlags.MinEnergy,
-            AmpCapacitive         = CaloFlags.AmpCapacitive,
-            AmpInductive          = CaloFlags.AmpInductive,
-            AmpResistive          = CaloFlags.AmpResistive,
-            HistogramPath         = self.HistogramPath + '/CrossTalk',
-            OutputLevel           = self.OutputLevel
-          )
-          self.RecoAlgs+=[cx]
+    def merge(self, acc: Any) -> None:
+        """
+        Configures all algorithms and appends them to the provided ComponentAccumulator.
 
-      self.OutputCollectionKeys+=[samp.CollectionKey ]
-
-
-    # Merge all collection into a container and split between truth and reco
-    
-    merge = Configurable(
-                ROOT.CaloCellMerge,
-                "CaloCellMerge" ,
-                # input key
-                InputCollectionKeys   = self.OutputCollectionKeys, # descriptors
-                # output key
-                OutputTruthCellsKey   = self.OutputTruthCellsKey , # cells
-                OutputCellsKey        = self.OutputCellsKey      , # cells
-                # configs
-                OutputLevel           = self.OutputLevel 
-    )
-
-    self.RecoAlgs+=[merge]
-
-
-  def merge( self, acc ):
-    """
-    Merges the configured algorithms into the main ComponentAccumulator.
-
-    Args:
-        acc (ComponentAccumulator): The master accumulator to add the algorithms to.
-    """
-    # configure
-    self.configure()
-    for reco in self.RecoAlgs:
-      acc+=reco 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        Args:
+            acc: The ComponentAccumulator instance.
+        """
+        self.configure()
+        for reco in self.RecoAlgs:
+            acc += reco

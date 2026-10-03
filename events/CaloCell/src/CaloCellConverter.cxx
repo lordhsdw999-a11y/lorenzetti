@@ -1,36 +1,42 @@
-
 #include "CaloCell/CaloCellConverter.h"
 #include "GaugiKernel/EDM.h"
 
 using namespace xAOD;
 
+bool CaloCellConverter::convert(const CaloCell *cell, CaloCell_t &cell_t) {
+  if (cell) {
+    cell_t.e    = cell->e();
+    cell_t.et   = cell->et();
+    cell_t.eta  = cell->eta();
+    cell_t.phi  = cell->phi();
+    cell_t.deta = cell->deltaEta();
+    cell_t.dphi = cell->deltaPhi();
+    cell_t.tau  = cell->tau();
 
+    cell_t.descriptor_key_hash = cell->descriptorLink().keyHash();
+    cell_t.descriptor_index    = cell->descriptorLink().index();
 
-bool CaloCellConverter::convert( const CaloCell *cell, CaloCell_t &cell_t)
-{
-  if(cell){
-      cell_t.e       = cell->e();
-      cell_t.et      = cell->et();
-      cell_t.eta     = cell->eta();
-      cell_t.phi     = cell->phi();
-      cell_t.deta    = cell->deltaEta();
-      cell_t.dphi    = cell->deltaPhi();
-      cell_t.tau     = cell->tau();
+    if (cell->descriptor()) {
       cell_t.descriptor_link = cell->descriptor()->hash();
-      return true;
+    } else {
+      cell_t.descriptor_link = 0;
+    }
+
+    return true;
   }
   return false;
 }
 
-
-bool CaloCellConverter::convert( const CaloCell_t &cell_t, CaloCell *&cell )
-{
-  cell = new xAOD::CaloCell( cell_t.eta, 
-                             cell_t.phi, 
-                             cell_t.deta, 
-                             cell_t.dphi );
-  cell->setE(cell_t.e); // estimated energy from OF. Same as descriptor->e()
-  cell->setEt(cell_t.et); // estimated transverse energy from OF
+bool CaloCellConverter::convert(const CaloCell_t &cell_t, CaloCell *&cell) {
+  cell = new xAOD::CaloCell(cell_t.eta, 
+                            cell_t.phi, 
+                            cell_t.deta, 
+                            cell_t.dphi);
+  cell->setE(cell_t.e);
+  cell->setEt(cell_t.et);
   cell->setTau(cell_t.tau);
+
+  cell->setDescriptor(cell_t.descriptor_key_hash, cell_t.descriptor_index);
+
   return true;
 }

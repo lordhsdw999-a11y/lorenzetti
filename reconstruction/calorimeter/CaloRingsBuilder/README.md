@@ -4,6 +4,34 @@
 
 ---
 
+## Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    subgraph StoreGate["StoreGate EventContext"]
+        Clusters["xAOD::CaloClusterContainer<br/>(InputClusterKey)"]
+        AuxCentral["xAOD::CaloRingsContainer<br/>(OutputRingerKey_Aux)"]
+        AuxFwd["xAOD::CaloRingsContainer<br/>(OutputRingerKey_Fwd_Aux)"]
+        FinalRings["xAOD::CaloRingsContainer<br/>(OutputRingerKey)"]
+    end
+
+    subgraph Pipeline["CaloRings Reconstruction Pipeline"]
+        CentralMaker["Central Ring Maker<br/>(Standard / Asym / Strips / Corner / Cross / Custom)<br/>|&eta;| &isin; [0.0, 2.5]"]
+        FwdMaker["Forward Ring Maker<br/>(CaloRingsMaker)<br/>|&eta;| &isin; [2.5, 4.9]"]
+        MergeAlg["CaloRingsMerge<br/>(Consolidates Rings & Preserves ElementLinks)"]
+    end
+
+    Clusters --> CentralMaker
+    Clusters --> FwdMaker
+    CentralMaker --> AuxCentral
+    FwdMaker --> AuxFwd
+    AuxCentral --> MergeAlg
+    AuxFwd --> MergeAlg
+    MergeAlg --> FinalRings
+```
+
+---
+
 ## How It Works
 
 The `CaloRingsBuilder` processes clusters event-by-event and generates ring representations across different layers of the calorimeter. For each configured calorimeter layer:
@@ -78,39 +106,31 @@ def CaloRingsBuilderCfg(
     DoSigmaCut        : bool  = False,
     SigmaCut          : float = 2.0,
     RingerTopology    : CaloRingsTopology = CaloRingsTopology.Standard,
-    CornerShift       : int   = None,
-    CrossShift        : int   = None,
-    RingsShiftEta     : List[float]   = None,
-    RingsShiftPhi     : List[float]   = None,
-    Axis              : int   = None,
+    CornerShift       : Optional[int]   = None,
+    CrossShift        : Optional[int]   = None,
+    RingsShiftEta     : Optional[List[float]] = None,
+    RingsShiftPhi     : Optional[List[float]] = None,
+    Axis              : Optional[int]   = None,
 ) -> List[Configurable]:
 ```
 
 ### Parameters
 * **`name`** (`str`): Base name of the configuration tools.
-* **`InputClusterKey`** (`str`): StoreGate key of the input `CaloClusterContainer`.
-* **`OutputRingerKey`** (`str`): StoreGate key for the final merged `CaloRingsContainer`.
+* **`InputClusterKey`** (`str`): StoreGate key of the input `xAOD::CaloClusterContainer`.
+* **`OutputRingerKey`** (`str`): StoreGate key for the final merged `xAOD::CaloRingsContainer`.
 * **`OutputLevel`** (`int`, default `0`): Verbosity logging level.
 * **`HistogramPath`** (`str`, default `"Expert/Rings"`): Path to book and save histograms.
 * **`DoSigmaCut`** (`bool`, default `False`): Enable noise suppression cut.
 * **`SigmaCut`** (`float`, default `2.0`): Threshold factor for the sigma noise cut.
 * **`RingerTopology`** (`CaloRingsTopology`, default `Standard`): The ring topology to use.
-* **`CornerShift`** (`int`, default `None`): Shift magnitude in cell units for the `Corner` topology (defaults to `3` if `None`).
-* **`CrossShift`** (`int`, default `None`): Shift magnitude in cell units for the `Cross` topology (defaults to `3` if `None`).
-* **`RingsShiftEta` / `RingsShiftPhi`** (`List[float]`, default `None`): Custom shift vectors in cell units (defaults to `[0]` if `None`).
-* **`Axis`** (`int`, default `None`): Strips axis (`0` for $\eta$, `1` for $\phi$; defaults to `0` if `None`).
-
-### Returned Value
-The configuration function returns a list containing three configuration tools:
-1. **Central/Main Ringer**: Handles ring calculation in the central region ($\eta \in [0.0, 2.5]$) according to the selected topology.
-2. **Forward Ringer**: Handles standard ring calculation in the forward region ($\eta \in [2.5, 4.9]$).
-3. **Merge Ringer**: Merges the central and forward ring collections into the single final container.
+* **`CornerShift`** (`Optional[int]`, default `None`): Shift magnitude in cell units for the `Corner` topology (defaults to `3` if `None`).
+* **`CrossShift`** (`Optional[int]`, default `None`): Shift magnitude in cell units for the `Cross` topology (defaults to `3` if `None`).
+* **`RingsShiftEta` / `RingsShiftPhi`** (`Optional[List[float]]`, default `None`): Custom shift vectors in cell units (defaults to `[0.0]` if `None`).
+* **`Axis`** (`Optional[int]`, default `None`): Strips axis (`0` for $\eta$, `1` for $\phi$; defaults to `0` if `None`).
 
 ---
 
 ## Python Configuration Example
-
-Below is an example showing how to import, configure, and use `CaloRingsBuilderCfg` in a job configuration script:
 
 ```python
 import ROOT
@@ -118,12 +138,10 @@ from GaugiKernel import LoggingLevel, ComponentAccumulator
 from CaloRingsBuilder import CaloRingsBuilderCfg, CaloRingsTopology
 
 def configure_reconstruction_job():
-    # 1. Initialize the ComponentAccumulator for managing job components
     acc = ComponentAccumulator("RecoJobAccumulator", "output.AOD.root")
     output_level = LoggingLevel.INFO
 
-    # 2. Configure Standard Rings
-    # Reads clusters from "Clusters" and writes merged rings to "RingsL0"
+    # Configure Standard Rings
     std_rings_tools = CaloRingsBuilderCfg(
         name="CaloRingsBuilder_Std",
         InputClusterKey="Clusters",
@@ -135,38 +153,7 @@ def configure_reconstruction_job():
         RingerTopology=CaloRingsTopology.Standard
     )
     
-    # Register the configured tools in the accumulator
     for tool in std_rings_tools:
-        acc.add(tool)
-
-    # 3. Configure a Custom Topology Ring Builder
-    # Example: Corner Rings with a custom shift of 2 cells
-    corner_rings_tools = CaloRingsBuilderCfg(
-        name="CaloRingsBuilder_Corner",
-        InputClusterKey="Clusters",
-        OutputRingerKey="CornerRings",
-        OutputLevel=output_level,
-        HistogramPath="Expert/CornerRings",
-        RingerTopology=CaloRingsTopology.Corner,
-        CornerShift=2
-    )
-    
-    for tool in corner_rings_tools:
-        acc.add(tool)
-
-    # 4. Configure Custom Shifts
-    custom_rings_tools = CaloRingsBuilderCfg(
-        name="CaloRingsBuilder_Custom",
-        InputClusterKey="Clusters",
-        OutputRingerKey="CustomRings",
-        OutputLevel=output_level,
-        HistogramPath="Expert/CustomRings",
-        RingerTopology=CaloRingsTopology.Custom,
-        RingsShiftEta=[0.0, -1.0, 1.0],
-        RingsShiftPhi=[0.0, 1.0, -1.0]
-    )
-    
-    for tool in custom_rings_tools:
         acc.add(tool)
 
     return acc

@@ -103,10 +103,13 @@ StatusCode CaloRingsMerge::post_execute(EventContext &ctx) const {
     }
 
     MSG_DEBUG("Creating new ring and attach the object into the container");
-    for (auto ring : **collection.ptr()) {
-      xAOD::CaloRings *newRing = new xAOD::CaloRings();
+    for (const auto ring : *collection) {
+      if (!ring) continue;
+      auto *newRing = new xAOD::CaloRings();
       newRing->setRings(ring->rings());
-      newRing->setCaloCluster(ring->caloCluster());
+      newRing->setEta(ring->eta());
+      newRing->setPhi(ring->phi());
+      newRing->setCaloCluster(ring->caloClusterLink());
       ringsContainer->push_back(newRing);
     }
 

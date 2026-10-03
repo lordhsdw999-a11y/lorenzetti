@@ -205,7 +205,7 @@ StatusCode RootStreamHITMaker::serialize( EventContext &ctx ) const
 
     xAOD::EventInfo_t event_t;
     xAOD::EventInfoConverter cnv;
-    cnv.convert( (**event.ptr()).front(), event_t);
+    cnv.convert( (*event).front(), event_t);
     container_event->push_back(event_t);
   }
   
@@ -219,7 +219,7 @@ StatusCode RootStreamHITMaker::serialize( EventContext &ctx ) const
       MSG_FATAL("It's not possible to read the xAOD::SeedContainer from this Context using this key " << m_inputSeedsKey );
     }
 
-    for (const auto seed : **container.ptr() ){
+    for (const auto seed : *container ){
       xAOD::Seed_t seed_t;
       xAOD::SeedConverter cnv;
       cnv.convert( seed, seed_t );
@@ -243,11 +243,11 @@ StatusCode RootStreamHITMaker::serialize( EventContext &ctx ) const
     }
 
     float etot=0;
-    for (const auto hit : **container.ptr() ){
+    for (const auto hit : *container ){
          
       if(m_onlyRoI){
         bool match=false;
-        for (const auto& par : **particles.ptr())
+        for (const auto& par : *particles)
         {
           float deltaEta = std::abs( par->eta() - hit->eta() );
           float deltaPhi = std::abs( CaloPhiRange::diff(par->phi(), hit->phi()) );
@@ -302,7 +302,7 @@ StatusCode RootStreamHITMaker::serialize( EventContext &ctx ) const
       MSG_FATAL("It's not possible to read the xAOD::TruthParticleContainer from this Context using this key " << m_inputTruthKey );
     }
 
-    for (const auto par : **container.ptr() ){
+    for (const auto par : *container ){
       xAOD::TruthParticle_t par_t;
       xAOD::TruthParticleConverter cnv;
       cnv.convert( par, par_t );

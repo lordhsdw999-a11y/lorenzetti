@@ -1,130 +1,129 @@
 # CaloCellBuilder
 
-`CaloCellBuilder` is a package designed to orchestrate the complete **Calorimeter Digitization chain** in the Lorenzetti framework. It processes raw simulated energy deposits (hits) in the calorimeter active samplings, models electronic and physical effects (such as pulse shapes, electronic noise, cross-talk, and detector defects), and reconstructs the digitized cells into final collections using Optimal Filtering.
+The `CaloCellBuilder` package provides algorithms, tools, and configuration infrastructure for the complete **Calorimeter Digitization and Cell Reconstruction chain** in the Lorenzetti framework.
+
+It converts simulated energy deposits (`xAOD::CaloHitContainer`) in sensitive calorimeter volumes into digitized readout cells (`xAOD::CaloCellContainer`), simulating electronic pulse shaping, noise injection, optimal filtering, cross-talk, and detector defects, while maintaining relational `ElementLink` references to a unified master descriptor container (`xAOD::CaloDetDescriptorContainer`).
 
 ---
 
-## How It Works
+## 1. Digitization Pipeline Architecture
 
-The digitization chain configured by `CaloCellBuilder` runs event-by-event and sampling-by-sampling through the following stages:
+The digitization chain executes event-by-event and sampling-by-sampling:
 
-1. **Pulse Shape Simulation (`PulseGenerator`)**:
-   Convolves the simulated energy deposits (hits) with the realistic electronic shaper pulse shape defined in the shaper configuration files (`ShaperFile`). It simulates the signal shape across multiple bunch crossings (out-of-time pileup).
-2. **Electronic Noise Injection**:
-   Adds Gaussian noise to the electronic pulse samples based on the configured noise standard deviation (`NoiseStd`).
-3. **Energy & Time Reconstruction (`OptimalFilter` / `ConstrainedOptimalFilter`)**:
-   Reconstructs the original cell energy and time deposit from the pulse samples. 
-   - Uses **Optimal Filtering (OF)** coefficients (`WeightsEnergy`/`WeightsTime`) by default.
-   - Fallback to **Constrained Optimal Filtering (COF)** for the `TILE` detector if constrained reconstruction is enabled (`CaloFlags.DoCOF`).
-4. **Defect & Anomaly Injection (`PulsePerturber`)**:
-   Optionally perturbs electronic pulses to simulate hardware anomalies (e.g., dead modules or abnormal noise levels) for specific event ranges and cell hashes defined in a Bad Run List JSON file (`BadRunListFile`).
-5. **Cross-Talk Simulation (`CrossTalkMaker`)**:
-   Optionally simulates capacitive, inductive, and resistive cross-talk between adjacent cells in the main calorimeter samplings (`EMEC2` and `EMB2`).
-6. **Collection Merging (`CaloCellMerge`)**:
-   Merges the digitized and reconstructed cells from all individual sampling collections into two master collections: one for reconstructed cells (`Cells`) and one containing truth information (`TruthCells`).
+```mermaid
+flowchart TD
+    Hits["xAOD::CaloHitContainer<br/>('Hits')"] --> Maker["CaloCellMaker (per Sampling)<br/>- 1. PulseGenerator: Convolves E(t) with shaper<br/>- 2. Noise Injection: Adds Gaussian noise<br/>- 3. OptimalFilter / ConstrainedOptimalFilter: Reconstructs E and tau<br/>- 4. PulsePerturber (optional): Simulates defects<br/>Output: xAOD::CaloDetDescriptorCollection"]
+    Maker -->|"Sampling Collections (EMB1_Cells, ...)"| CrossTalk{"CrossTalkMaker<br/>(Optional)"}
+    CrossTalk -->|"Cross-talk corrected collections"| Merge["CaloCellMerge<br/>- Clones descriptors into master container<br/>- Binds ElementLink to CaloDetDescriptors<br/>- Optional: FilterEmptyCells (energy > minEnergy)"]
+    Merge --> Cells["xAOD::CaloCellContainer<br/>('Cells')"]
+    Merge --> TruthCells["xAOD::CaloCellContainer<br/>('TruthCells')"]
+    Merge --> Descriptors["xAOD::CaloDetDescriptorContainer<br/>('CaloDetDescriptors')"]
+```
 
 ---
 
-## Configuration Flags
+## 2. Algorithms and AlgTools
 
-Global digitization and reconstruction configurations are managed via the stringified enum flags:
+### Core Algorithms
+* **`CaloCellMaker` (`C++`)**:
+  Manages sampling-level digitization. Discretizes calorimeter geometry into $\eta$-$\phi$ cell descriptors, transfers hit bunch-crossing energy deposits, executes `PulseGenerator`, and invokes configured `AlgTool` filters.
+* **`CaloCellMerge` (`C++`)**:
+  Merges sampling descriptor collections into a master `xAOD::CaloDetDescriptorContainer` and unified reconstructed (`"Cells"`) and truth (`"TruthCells"`) containers. Establishes relational `ElementLink<xAOD::CaloDetDescriptor>` with lazy resolution capability.
+* **`CrossTalkMaker` (`C++`)**:
+  Simulates capacitive, inductive, and resistive cross-talk between neighboring cells in dense calorimeter layers (`EMB2`, `EMEC2`).
 
-### 1. `CaloFlags`
-* **`SamplingnoiseStd`** (`float`, default `0.0`): Standard deviation for global noise injection.
-* **`DoCrossTalk`** (`bool`, default `False`): Enables capacitive/inductive/resistive cross-talk simulation.
-* **`DoCOF`** (`bool`, default `False`): Enables Constrained Optimal Filtering (COF) for the Tile calorimeter.
-* **`DoDefects`** (`bool`, default `False`): Enables defect/anomaly injection using `PulsePerturber`.
-
-### 2. `CrossTalkFlags`
-* **`MinEnergy`** (`float`, default `1 * GeV`): Minimum cell energy threshold required to trigger cross-talk propagation.
-* **`AmpCapacitive`** (`float`, default `4.2`): Capacitive cross-talk amplitude multiplier.
-* **`AmpInductive`** (`float`, default `2.3`): Inductive cross-talk amplitude multiplier.
-* **`AmpResistive`** (`float`, default `1.0`): Resistive cross-talk amplitude multiplier.
-
-### 3. `AnomalyFlags`
-* **`BadRunListFile`** (`str`, default `""`): Path to the Bad Run List JSON file containing run definitions for anomaly injection.
+### AlgTools
+* **`PulseGenerator` (`C++`)**:
+  Convolves energy deposits with realistic shaper response curves and adds Gaussian noise.
+* **`OptimalFilter` (`C++`)**:
+  Estimates cell energy $E = \sum a_i S_i$ and time $\tau = \sum b_i S_i$ using precalculated OF weights.
+* **`ConstrainedOptimalFilter` (`C++`)**:
+  Constrained Optimal Filter (COF) for signal reconstruction in the Tile calorimeter.
+* **`PulsePerturber` (`C++`)**:
+  Injects detector defects (dead modules, abnormal noise levels) based on Bad Run List (BRL) specifications.
 
 ---
 
-## Python Configuration
+## 3. Configuration Flags
 
-The main steering interface is the `CaloCellBuilder` class, which orchestrates the creation of all digitizer tool configurations.
+Global digitization flags are controlled via stringified enums:
+
+### `CaloFlags`
+* `SamplingnoiseStd` (`float`, default `0.0`): Global noise standard deviation.
+* `DoCrossTalk` (`bool`, default `False`): Enables cell-to-cell cross-talk simulation.
+* `DoCOF` (`bool`, default `False`): Enables Constrained Optimal Filtering for Tile calorimeter.
+* `DoDefects` (`bool`, default `False`): Enables anomaly injection via `PulsePerturber`.
+
+### `CrossTalkFlags`
+* `MinEnergy` (`float`, default `1.0 * GeV`): Energy threshold to trigger cross-talk propagation.
+* `AmpCapacitive` (`float`, default `4.2`): Capacitive coupling percentage.
+* `AmpInductive` (`float`, default `2.3`): Inductive coupling percentage.
+* `AmpResistive` (`float`, default `1.0`): Resistive coupling percentage.
+
+### `AnomalyFlags`
+* `BadRunListFile` (`str`, default `""`): Path to JSON file containing bad run and dead module definitions.
+
+---
+
+## 4. Python Configuration Interface
 
 ### `CaloCellBuilder` Class
 
-#### Constructor Signature
 ```python
-class CaloCellBuilder( Logger ):
+class CaloCellBuilder(Logger):
     def __init__(
         self,
-        name                 : str,
-        detector,
-        HistogramPath        : str = "Expert",
-        InputHitsKey         : str = "Hits",
-        OutputCellsKey       : str = "Cells",
-        OutputTruthCellsKey  : str = "TruthCells",
-        InputEventKey        : str = "Events",
-        OutputLevel          : int = 0,
-    )
+        name: str,
+        detector: Any,
+        HistogramPath: str = "Expert",
+        InputHitsKey: str = "Hits",
+        OutputCellsKey: str = "Cells",
+        OutputTruthCellsKey: str = "TruthCells",
+        OutputDescriptorsKey: str = "CaloDetDescriptors",
+        InputEventKey: str = "Events",
+        FilterEmptyCells: bool = False,
+        MinEnergy: float = 0.0,
+        OutputLevel: int = LoggingLevel.toC("INFO"),
+    ) -> None:
+        ...
 ```
 
-#### Key Parameters
-* **`name`** (`str`): Name of the builder instance.
-* **`detector`**: The detector construction configuration object containing active samplings.
-* **`HistogramPath`** (`str`, default `"Expert"`): Path for booking and saving monitoring histograms.
-* **`InputHitsKey`** (`str`, default `"Hits"`): StoreGate key for input hits.
-* **`OutputCellsKey`** (`str`, default `"Cells"`): StoreGate key for output reconstructed cells.
-* **`OutputTruthCellsKey`** (`str`, default `"TruthCells"`): StoreGate key for cell truth information.
-* **`InputEventKey`** (`str`, default `"Events"`): StoreGate key for event headers.
-* **`OutputLevel`** (`int`, default `0`): Verbosity logging level.
-
-#### Main Interface
-* **`merge(self, acc)`**: Configures all required digitization, optimal filtering, cross-talk, and merging tools, and appends them to the provided `ComponentAccumulator`.
-
----
-
-## Python Configuration Example
-
-Below is an example showing how to import, configure, and use `CaloCellBuilder` in a reconstruction configuration script:
+### Usage Example
 
 ```python
 import ROOT
 from GaugiKernel import LoggingLevel, ComponentAccumulator
 from CaloCellBuilder import CaloCellBuilder, CaloFlags, CrossTalkFlags, AnomalyFlags
-from CaloCell import Detector
 
-def configure_digitization_job(detector_construction):
-    # 1. Initialize the ComponentAccumulator for managing job components
-    acc = ComponentAccumulator("DigitizationJobAccumulator", "output.ESD.root")
-    output_level = LoggingLevel.INFO
+def configure_digitization(detector_construction: Any) -> ComponentAccumulator:
+    acc = ComponentAccumulator("CaloDigitizationAcc")
 
-    # 2. Configure global Digitization Flags
+    # 1. Set global flags
     CaloFlags.DoCrossTalk = True
-    CaloFlags.DoDefects = True
-    AnomalyFlags.BadRunListFile = "bad_run_list.json"
-    CrossTalkFlags.MinEnergy = 0.5 * ROOT.GeV
+    CaloFlags.DoDefects = False
 
-    # 3. Configure the CaloCellBuilder
-    # Reads simulated hits from "CaloHits" and writes final cells to "ReconstructedCells"
+    # 2. Instantiate and configure CaloCellBuilder
     cell_builder = CaloCellBuilder(
-        name="L0CaloCellBuilder",
+        name="CaloCellBuilder",
         detector=detector_construction,
-        InputHitsKey="CaloHits",
-        OutputCellsKey="ReconstructedCells",
+        InputHitsKey="Hits",
+        OutputCellsKey="Cells",
         OutputTruthCellsKey="TruthCells",
-        InputEventKey="EventInfo",
-        OutputLevel=output_level
+        OutputDescriptorsKey="CaloDetDescriptors",
+        FilterEmptyCells=True,
+        MinEnergy=0.0,  # Filter out empty cells
+        OutputLevel=LoggingLevel.toC("INFO"),
     )
 
-    # 4. Configure all tools and register them inside the accumulator
+    # 3. Merge into the accumulator
     cell_builder.merge(acc)
 
     return acc
-
-if __name__ == "__main__":
-    # Example placeholder detector construction object
-    # In a real job, this is imported from the geometry module
-    detector_geom = ROOT.DetectorConstruction() 
-    job_acc = configure_digitization_job(detector_geom)
-    print("CaloCellBuilder digitization chain configured successfully!")
 ```
+
+---
+
+## 5. Dependencies
+* `core/GaugiKernel`: Algorithm and AlgTool interfaces, StoreGate `EventContext`, Data Handles, `ElementLink`.
+* `events/CaloCell`: `xAOD::CaloCell`, `xAOD::CaloDetDescriptor`, `xAOD::CaloCellContainer`, `xAOD::CaloDetDescriptorContainer`.
+* `events/CaloHit`: `xAOD::CaloHitContainer`.

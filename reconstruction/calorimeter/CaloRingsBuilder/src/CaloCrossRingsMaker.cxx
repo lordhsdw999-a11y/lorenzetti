@@ -75,18 +75,29 @@ StatusCode CaloCrossRingsMaker::post_execute(SG::EventContext &ctx) const
     vec_rs.push_back(RingSetCross(samplings, m_nRings[rs], m_detaRings[rs], m_dphiRings[rs]));
   }
 
-  for (auto *clus : **clusters.ptr())
+  uint32_t clus_idx = 0;
+  for (const auto clus : *clusters)
   {
+    if (!clus)
+    {
+      clus_idx++;
+      continue;
+    }
+
     MSG_INFO("Creating the Cross CaloRings for this cluster...");
 
     if ((std::abs(clus->eta()) < m_etaRange[0]) || (std::abs(clus->eta()) >= m_etaRange[1]))
     {
       MSG_DEBUG("Skipping cluster outside of the eta range... " << clus->eta()
                                                                 << " is out of:" << m_etaRange[0] << "," << m_etaRange[1]);
+      clus_idx++;
       continue;
     }
 
     auto rings = new xAOD::CaloRings();
+    rings->setEta(clus->eta());
+    rings->setPhi(clus->phi());
+
     for (auto &rs : vec_rs)
     {
       rs.clear();
@@ -124,8 +135,10 @@ StatusCode CaloCrossRingsMaker::post_execute(SG::EventContext &ctx) const
 
     MSG_DEBUG("Setting all ring informations and attach into the EventContext.");
     rings->setRings(ref_rings);
-    rings->setCaloCluster(clus);
+    rings->setCaloCluster(m_clusterKey, clus_idx, clus);
     ringer->push_back(rings);
+
+    clus_idx++;
   }
 
   return StatusCode::SUCCESS;

@@ -4,6 +4,56 @@
 
 ---
 
+## Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Simulation["Simulation / Generator"]
+        Geant4["Geant4 Step Actions"]
+    end
+
+    subgraph HIT_Tier["HIT Tier"]
+        HitMaker["RootStreamHITMaker"]
+        HitTree[("HIT ROOT File<br/>CollectionTree")]
+        HitReader["RootStreamHITReader"]
+    end
+
+    subgraph ESD_Tier["ESD Tier"]
+        ESDMaker["RootStreamESDMaker"]
+        ESDTree[("ESD ROOT File<br/>CollectionTree")]
+        ESDReader["RootStreamESDReader"]
+    end
+
+    subgraph AOD_Tier["AOD Tier"]
+        AODMaker["RootStreamAODMaker"]
+        AODTree[("AOD ROOT File<br/>CollectionTree")]
+        AODReader["RootStreamAODReader"]
+    end
+
+    subgraph Analysis["Analysis / ML Tier"]
+        NtupleMaker["RootStreamNtupleMaker"]
+        FlatNtuple[("Flat Ntuple ROOT File<br/>events Tree")]
+    end
+
+    subgraph StoreGate["StoreGate EventContext"]
+        Hits["xAOD::CaloHitContainer"]
+        Cells["xAOD::CaloCellContainer"]
+        Clusters["xAOD::CaloClusterContainer"]
+        Rings["xAOD::CaloRingsContainer"]
+        Electrons["xAOD::ElectronContainer"]
+    end
+
+    Geant4 --> Hits
+    Hits --> HitMaker --> HitTree --> HitReader --> Hits
+    Hits --> Cells
+    Cells --> ESDMaker --> ESDTree --> ESDReader --> Cells
+    Cells --> Clusters --> Rings --> Electrons
+    Clusters & Rings & Electrons --> AODMaker --> AODTree --> AODReader --> Clusters & Rings & Electrons
+    Clusters & Rings & Electrons --> NtupleMaker --> FlatNtuple
+```
+
+---
+
 ## Data Tiers
 
 The package supports four distinct event formats, each catering to different levels of analysis detail:
@@ -22,7 +72,7 @@ The package supports four distinct event formats, each catering to different lev
 ### 3. AOD (Analysis Object Data) Tier
 * **Maker**: `RootStreamAODMaker` (via `RootStreamAODMakerCfg`)
 * **Reader**: `RootStreamAODReader`
-* **Description**: Streams high-level reconstructed objects such as calorimeter clusters (`CaloCluster`), concentric rings (`CaloRings`), reconstructed electrons (`Electron`), track seeds, truth particles, and event headers. Ideal for performance evaluations and standard physics analysis.
+* **Description**: Streams high-level reconstructed objects such as calorimeter clusters (`CaloCluster`), concentric rings (`CaloRings`), reconstructed electrons (`Electron`), track seeds, truth particles, and event headers. Persistent structs (`*_t`) preserve relational links via 64-bit string key hashing and container indices.
 
 ### 4. Ntuple Tier
 * **Maker**: `RootStreamNtupleMaker` (via `RootStreamNtupleMakerCfg`)
@@ -52,19 +102,15 @@ Defines the standard StoreGate collection keys used throughout the data chain:
 ## Python Configuration Examples
 
 ### Example 1: Writing ESD Data (Maker Job)
-Below is an example showing how to configure `RootStreamESDMaker` to write digitization outputs to a file:
-
 ```python
 import ROOT
 from GaugiKernel import LoggingLevel, ComponentAccumulator
 from RootStreamBuilder import RootStreamESDMakerCfg
 
 def configure_esd_writer_job():
-    # 1. Initialize the accumulator
     acc = ComponentAccumulator("ESDWriterAccumulator", "output.ESD.root")
     output_level = LoggingLevel.INFO
 
-    # 2. Configure the ESD Streamer
     esd_writer = RootStreamESDMakerCfg(
         name="L0ESDStreamer",
         InputEventKey="EventInfo",
@@ -76,7 +122,6 @@ def configure_esd_writer_job():
         NtupleName="CollectionTree"
     )
 
-    # 3. Add to job accumulator
     acc.add(esd_writer)
     return acc
 
@@ -86,19 +131,15 @@ if __name__ == "__main__":
 ```
 
 ### Example 2: Reading AOD Data (Reader Job)
-Below is an example showing how to configure `RootStreamAODReader` to load reconstructed objects from a file:
-
 ```python
 import ROOT
 from GaugiKernel import LoggingLevel, ComponentAccumulator
 from RootStreamBuilder import RootStreamAODReader
 
-def configure_aod_reader_job(input_file_path):
-    # 1. Initialize the accumulator
+def configure_aod_reader_job(input_file_path: str):
     acc = ComponentAccumulator("AODReaderAccumulator")
     output_level = LoggingLevel.INFO
 
-    # 2. Configure the AOD Reader
     aod_reader = RootStreamAODReader(
         name="L0AODReader",
         InputFile=input_file_path,
@@ -116,7 +157,6 @@ def configure_aod_reader_job(input_file_path):
         NtupleName="CollectionTree"
     )
 
-    # 3. Register the reader in the accumulator (SetReader)
     aod_reader.merge(acc)
     return acc
 

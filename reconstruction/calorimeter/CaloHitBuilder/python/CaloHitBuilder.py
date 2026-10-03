@@ -1,88 +1,117 @@
+"""
+CaloHitBuilder module.
 
-__all__ = ["CaloHitBuilder"]
+Provides the CaloHitBuilder coordinator class that creates and attaches
+sampling-level CaloHitMaker algorithms and the master CaloHitMerge algorithm
+to the simulation ComponentAccumulator.
+"""
 
+from typing import Any, List, Optional
 import ROOT
-
 
 from GaugiKernel import Logger, LoggingLevel, Configurable
 from GaugiKernel.macros import MSG_INFO
-from CaloHitBuilder import CaloHitMakerCfg
+from CaloHitBuilder.CaloHitMaker import CaloHitMakerCfg
 from G4Kernel import ComponentAccumulator
 
+__all__ = ["CaloHitBuilder"]
 
-#
-# Calo cell builder
-#
+
 class CaloHitBuilder(Logger):
+    """
+    Coordinator class to set up calorimeter hit creation and merging.
 
-    def __init__(self, 
-                 name : str,
-                 OutputHitsKey: str,
-                 HistogramPath: str = "Expert",
-                 OutputLevel: int = LoggingLevel.toC('INFO'),
-                 ):
+    Iterates over all detector samplings configured in the detector description,
+    spawns a CaloHitMaker instance per sampling, and appends a CaloHitMerge
+    algorithm to combine all sampling collections into a unified CaloHitContainer.
+    """
 
-        Logger.__init__(self, name)
-        self.RecoAlgs = []
-        self.HistogramPath = HistogramPath
-        self.OutputLevel = OutputLevel
-        self.OutputHitsKey = OutputHitsKey
-        self.OutputCollectionKeys = []
+    def __init__(
+        self,
+        name: str,
+        OutputHitsKey: str = "Hits",
+        FilterEmptyHits: bool = False,
+        MinEnergy: float = 0.0,
+        HistogramPath: str = "Expert",
+        OutputLevel: int = LoggingLevel.toC("INFO"),
+    ) -> None:
+        """
+        Initializes the CaloHitBuilder.
 
-    def configure(self):
+        Args:
+            name: Name of the builder instance.
+            OutputHitsKey: StoreGate key for the output merged CaloHitContainer.
+            FilterEmptyHits: Flag to filter out hits with energy <= MinEnergy.
+            MinEnergy: Minimum energy threshold for hit retention in MeV.
+            HistogramPath: Root path for monitoring histograms.
+            OutputLevel: Logging verbosity level.
+        """
+        super().__init__(name)
+        self.RecoAlgs: List[Configurable] = []
+        self.HistogramPath: str = HistogramPath
+        self.OutputLevel: int = OutputLevel
+        self.OutputHitsKey: str = OutputHitsKey
+        self.FilterEmptyHits: bool = FilterEmptyHits
+        self.MinEnergy: float = MinEnergy
+        self.OutputCollectionKeys: List[str] = []
+        self.__detector: Optional[Any] = None
 
+    def configure(self) -> None:
+        """
+        Configures all CaloHitMaker algorithms and the CaloHitMerge algorithm.
+        """
         MSG_INFO(self, "Configure CaloHitBuilder.")
 
-        for samp in self.__detector.samplings:
+        if self.__detector is None:
+            raise RuntimeError("Detector description is not set in CaloHitBuilder.")
 
+        for samp in self.__detector.samplings:
             MSG_INFO(
                 self,
-                f"Create new CaloHitMaker and dump all hits into {samp.CollectionKey}")
-                
-            histogramPath = self.HistogramPath + '/' + samp.name()
-            alg = CaloHitMakerCfg(
-                "CaloHitMaker", 
+                f"Create new CaloHitMaker and dump all hits into {samp.CollectionKey}",
+            )
+
+            histogramPath: str = f"{self.HistogramPath}/{samp.name()}"
+            alg: Configurable = CaloHitMakerCfg(
+                "CaloHitMaker",
                 samp,
                 OutputCollectionKey=samp.CollectionKey,
-                SamplingNoiseStd=samp.Noise,  # TOF selection
+                SamplingNoiseStd=samp.Noise,
                 HistogramPath=histogramPath,
                 OutputLevel=self.OutputLevel,
-                # Use True when debug with only one thread
-                DetailedHistograms=False
-                )
+                DetailedHistograms=False,
+            )
 
             self.RecoAlgs.append(alg)
             self.OutputCollectionKeys.append(samp.CollectionKey)
 
         MSG_INFO(
             self,
-            f"Create CaloHitMerge and dump all hit collections into"
-            f" {self.OutputHitsKey} container")
+            f"Create CaloHitMerge and dump all hit collections into {self.OutputHitsKey} container",
+        )
 
-        # Merge all collection into a container
-        # and split between truth and reco
-        mergeAlg = Configurable(
+        # Merge all collections into a master container
+        mergeAlg: Configurable = Configurable(
             ROOT.CaloHitMerge,
             "CaloHitMerge",
             InputCollectionKeys=self.OutputCollectionKeys,
             OutputHitsKey=self.OutputHitsKey,
-            OutputLevel=self.OutputLevel
+            FilterEmptyHits=self.FilterEmptyHits,
+            MinEnergy=self.MinEnergy,
+            OutputLevel=self.OutputLevel,
         )
 
         self.RecoAlgs.append(mergeAlg)
 
-    def merge(self, acc: ComponentAccumulator):
+    def merge(self, acc: ComponentAccumulator) -> None:
         """
-        Obtains the detector from the ComponentAccumulator and appends
-        all the hit makers required by the accumulator's detector.
+        Obtains the detector description from the ComponentAccumulator,
+        configures the hit maker/merger algorithms, and appends them to the accumulator.
 
-        Parameters
-        ----------
-        acc : ComponentAccumulator
-            Accumulator to merge with
+        Args:
+            acc: The ComponentAccumulator to merge with.
         """
-
         self.__detector = acc.detector()
         self.configure()
-        for reco in self.__recoAlgs:
+        for reco in self.RecoAlgs:
             acc += reco

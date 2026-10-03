@@ -605,9 +605,9 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
   InitBranch(tree, "truth_el_loose", &truth_el_loose);
   InitBranch(tree, "truth_el_vloose", &truth_el_vloose);
 
-  auto evt = (**event_container.ptr()).front();
+  auto evt = (*event_container).front();
 
-  for (auto el : **electron_container.ptr())
+  for (auto el : *electron_container)
   {
     // cl_rings->clear();
     mc_pdgid->clear();
@@ -685,7 +685,7 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     const xAOD::CaloRings *cl_ringerL0 = nullptr;
     if (ringerL0_container.isValid())
     {
-      for (auto ring : **ringerL0_container.ptr())
+      for (auto ring : *ringerL0_container)
       {
         if (ring->caloCluster() == clus)
         {
@@ -698,7 +698,7 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     const xAOD::CaloCluster *truth_clus = nullptr;
     if (truth_cluster_container.isValid())
     {
-      for (auto tr_cl : **truth_cluster_container.ptr())
+      for (auto tr_cl : *truth_cluster_container)
       {
         if (tr_cl->seed() == clus->seed())
         {
@@ -712,7 +712,7 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
       cl_ring_vecs[i]->clear();
       if (!ringer_containers[i].isValid())
         continue;
-      for (auto ring : **ringer_containers[i].ptr())
+      for (auto ring : *ringer_containers[i])
       {
         if (ring->caloCluster() == clus)
         {
@@ -728,7 +728,7 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
       truth_cl_ring_vecs[i]->clear();
       if (!truth_ringer_containers[i].isValid() || !truth_clus)
         continue;
-      for (auto ring : **truth_ringer_containers[i].ptr())
+      for (auto ring : *truth_ringer_containers[i])
       {
         if (ring->caloCluster() == truth_clus)
         {
@@ -739,22 +739,11 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
       }
     }
     const xAOD::CaloRings *truth_ringer = nullptr;
-    // if (truth_clus && truth_ringer_container.isValid())
-    // {
-    //   for (auto ring : **truth_ringer_container.ptr())
-    //   {
-    //     if (ring->caloCluster() == truth_clus)
-    //     {
-    //       truth_ringer = ring;
-    //       break;
-    //     }
-    //   }
-    // }
 
     const xAOD::Electron *truth_el = nullptr;
     if (truth_electron_container.isValid())
     {
-      for (auto tr_el : **truth_electron_container.ptr())
+      for (auto tr_el : *truth_electron_container)
       {
         if (tr_el->caloCluster() && tr_el->caloCluster()->seed() == clus->seed())
         {
@@ -881,7 +870,7 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
 
     seed_eta = seed->eta();
     seed_phi = seed->phi();
-    for (auto mc : **truth_container.ptr())
+    for (auto mc : *truth_container)
     {
       if (mc->seedid() == seed->id())
       {

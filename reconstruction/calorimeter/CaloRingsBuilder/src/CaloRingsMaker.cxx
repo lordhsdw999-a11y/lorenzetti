@@ -136,18 +136,29 @@ StatusCode CaloRingsMaker::post_execute(EventContext &ctx) const
   }
 
   // Loop over all CaloClusters
-  for (auto *clus : **clusters.ptr())
+  uint32_t clus_idx = 0;
+  for (const auto clus : *clusters)
   {
+    if (!clus)
+    {
+      clus_idx++;
+      continue;
+    }
+
     MSG_INFO("Creating the CaloRings for this cluster...");
 
     if ((abs(clus->eta()) < m_etaRange[0]) || (abs(clus->eta()) >= m_etaRange[1]))
     {
       MSG_DEBUG("Skipping cluster outside of the eta range... " << clus->eta() << " is out of:" << m_etaRange[0] << "," << m_etaRange[1]);
+      clus_idx++;
       continue;
     }
 
     // Create the CaloRings object
     auto rings = new xAOD::CaloRings();
+    rings->setEta(clus->eta());
+    rings->setPhi(clus->phi());
+
     for (auto &rs : vec_rs)
     {
 
@@ -187,8 +198,10 @@ StatusCode CaloRingsMaker::post_execute(EventContext &ctx) const
 
     MSG_DEBUG("Setting all ring informations and attach into the EventContext.");
     rings->setRings(ref_rings);
-    rings->setCaloCluster(clus);
+    rings->setCaloCluster(m_clusterKey, clus_idx, clus);
     ringer->push_back(rings);
+
+    clus_idx++;
   }
 
   return StatusCode::SUCCESS;
@@ -238,8 +251,9 @@ StatusCode CaloRingsMaker::fillHistograms(EventContext &ctx) const
   }
 
   store->cd(m_histPath);
-  for (auto rings : **ringer.ptr())
+  for (const auto rings : *ringer)
   {
+    if (!rings) continue;
     auto ringerShape = rings->rings();
 
     for (int r = 0; r < m_maxRingsAccumulated; ++r)

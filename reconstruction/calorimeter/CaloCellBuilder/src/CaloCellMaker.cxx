@@ -1,4 +1,3 @@
-
 #include "CaloCellMaker.h"
 #include "CaloCell/CaloDetDescriptor.h"
 #include "CaloCell/CaloDetDescriptorCollection.h"
@@ -14,6 +13,8 @@
 #include "TH2F.h"
 #include "TH2Poly.h"
 #include "TVector3.h"
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 using namespace Gaugi;
@@ -36,12 +37,29 @@ using namespace SG;
  * - Sampling: Calorimeter sampling ID (e.g., EMB1, Tile1).
  * - BunchIdStart/End: Readout window in bunch crossings.
  */
-CaloCellMaker::CaloCellMaker(std::string name):
+CaloCellMaker::CaloCellMaker(std::string name) :
     IMsgService(name), 
     Algorithm(),
+    m_collectionKey("Cells"),
+    m_hitsKey("Hits"),
+    m_histPath("/CaloCellMaker"),
+    m_sampling(0),
+    m_segment(0),
+    m_detector(0),
+    m_bcid_start(-7),
+    m_bcid_end(8),
+    m_bc_nsamples(0),
+    m_bc_duration(25),
+    m_zMin(0.0),
+    m_zMax(0.0),
+    m_z(0.0),
+    m_detailedHistograms(false),
+    m_nEtaBins(0),
+    m_nPhiBins(0),
+    m_pulseGenerator(nullptr)
 {
-  declareProperty("InputHitsKey"            , m_hitsKey             = "Hits"           );// input
-  declareProperty("OutputCollectionKey"     , m_collectionKey       = "Cells"          );// output
+  declareProperty("InputHitsKey"            , m_hitsKey             = "Hits"           );
+  declareProperty("OutputCollectionKey"     , m_collectionKey       = "Cells"          );
   declareProperty("EtaBins"                 , m_etaBins                                );
   declareProperty("PhiBins"                 , m_phiBins                                );
   declareProperty("ZMin"                    , m_zMin                                   );
@@ -55,26 +73,30 @@ CaloCellMaker::CaloCellMaker(std::string name):
   declareProperty("BunchDuration"           , m_bc_duration         = 25               );
   declareProperty("OutputLevel"             , m_outputLevel         = 1                );
   declareProperty("DetailedHistograms"      , m_detailedHistograms  = false            );
-  declareProperty("HistogramPath"           , m_histPath            = "/CaloCellMaker");
+  declareProperty("HistogramPath"           , m_histPath            = "/CaloCellMaker" );
 }
 
 //!=====================================================================
 
 StatusCode CaloCellMaker::initialize() {
   CHECK_INIT();
-  if (m_pulseGenerator->initialize().isFailure()) {
-    MSG_FATAL("It's not possible to iniatialize Pulse Generator tool.");
+  if (m_pulseGenerator && m_pulseGenerator->initialize().isFailure()) {
+    MSG_FATAL("It's not possible to initialize Pulse Generator tool.");
+    return StatusCode::FAILURE;
   }
-  m_nEtaBins = m_etaBins.size() - 1;
-  m_nPhiBins = m_phiBins.size() - 1;
+  m_nEtaBins = m_etaBins.size() > 1 ? m_etaBins.size() - 1 : 0;
+  m_nPhiBins = m_phiBins.size() > 1 ? m_phiBins.size() - 1 : 0;
 
   // Set message level
   setMsgLevel((MSG::Level)m_outputLevel);
 
   for (auto tool : m_toolHandles) {
-    MSG_DEBUG(tool->name());
-    if (tool->initialize().isFailure()) {
-      MSG_FATAL("It's not possible to initialize " << tool->name() << " tool.");
+    if (tool) {
+      MSG_DEBUG(tool->name());
+      if (tool->initialize().isFailure()) {
+        MSG_FATAL("It's not possible to initialize " << tool->name() << " tool.");
+        return StatusCode::FAILURE;
+      }
     }
   }
 
@@ -85,7 +107,7 @@ StatusCode CaloCellMaker::initialize() {
 
 StatusCode CaloCellMaker::finalize() {
   for (auto tool : m_toolHandles) {
-    if (tool->finalize().isFailure()) {
+    if (tool && tool->finalize().isFailure()) {
       MSG_ERROR("It's not possible to finalize " << tool->name() << " tool.");
     }
   }
@@ -131,33 +153,23 @@ StatusCode CaloCellMaker::bookHistograms(SG::EventContext &ctx) const {
 //!=====================================================================
 
 StatusCode CaloCellMaker::pre_execute(EventContext &ctx) const {
-  // Build the CaloHitCollection and attach into the EventContext
-  // Create the hit collection into the event context
-  SG::WriteHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey,
-                                                                ctx);
-
+  // Build the CaloDetDescriptorCollection and attach into the EventContext
+  SG::WriteHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey, ctx);
   collection.record(std::unique_ptr<xAOD::CaloDetDescriptorCollection>(
       new xAOD::CaloDetDescriptorCollection()));
 
-  float deltaEta = std::abs(m_etaBins[1] - m_etaBins[0]); //[-3,-2], [2,3]
+  float deltaEta = std::abs(m_etaBins[1] - m_etaBins[0]);
   float deltaPhi = std::abs(m_phiBins[1] - m_phiBins[0]);
 
-  //
-  // Prepare all sensitive objects like a two dimensional histogram
-  //
+  // Prepare all sensitive objects
   for (unsigned etaBin = 0; etaBin < m_nEtaBins; ++etaBin) {
-
-    // if (std::abs(m_etaBins[etaBin]) == std::abs(m_etaBins[etaBin+1]))
-    //   continue;
-
     for (unsigned phiBin = 0; phiBin < m_nPhiBins; ++phiBin) {
-
-      float etaCenter = m_etaBins[etaBin] + deltaEta / 2;
-      float phiCenter = m_phiBins[phiBin] + deltaPhi / 2;
+      float etaCenter = m_etaBins[etaBin] + deltaEta / 2.0;
+      float phiCenter = m_phiBins[phiBin] + deltaPhi / 2.0;
 
       unsigned bin = m_nPhiBins * etaBin + phiBin;
 
-      // Create the calorimeter cell
+      // Create the calorimeter cell descriptor
       auto *descriptor = new xAOD::CaloDetDescriptor(
           etaCenter, phiCenter, deltaEta, deltaPhi, hash(bin), m_z,
           (CaloSampling)m_sampling, (Detector)m_detector, m_bc_duration,
@@ -166,9 +178,8 @@ StatusCode CaloCellMaker::pre_execute(EventContext &ctx) const {
       if (!collection->insert(descriptor->hash(), descriptor)) {
         MSG_FATAL("It is not possible to include cell hash ("
                   << descriptor->hash()
-                  << ") into the collection. hash already exist.");
+                  << ") into the collection. Hash already exists.");
       }
-
     } // Loop over phi bins
   }   // Loop over eta bins
 
@@ -177,21 +188,21 @@ StatusCode CaloCellMaker::pre_execute(EventContext &ctx) const {
 
 //!=====================================================================
 
-StatusCode CaloCellMaker::execute(EventContext & /*ctx*/,
-                                  const G4Step * /*step*/) const {
+StatusCode CaloCellMaker::execute(EventContext & /*ctx*/, const G4Step * /*step*/) const {
   return StatusCode::SUCCESS;
 }
 
 //!=====================================================================
 
 StatusCode CaloCellMaker::execute(EventContext &ctx, int /*evt*/) const {
-
   if (pre_execute(ctx).isFailure()) {
-    MSG_FATAL("Its not possible to pre_execute. Abort!");
+    MSG_FATAL("It's not possible to pre_execute. Abort!");
+    return StatusCode::FAILURE;
   }
 
   if (post_execute(ctx).isFailure()) {
-    MSG_FATAL("Its not possible to post_execute. Abort!");
+    MSG_FATAL("It's not possible to post_execute. Abort!");
+    return StatusCode::FAILURE;
   }
 
   return StatusCode::SUCCESS;
@@ -203,81 +214,68 @@ StatusCode CaloCellMaker::execute(EventContext &ctx, int /*evt*/) const {
  * @brief Post-execution step: Digitization loop.
  *
  * Iterates over all hits associated with this sampling.
- * 1. Accumulates energy deposits per bunch crossing.
+ * 1. Accumulates energy deposits per bunch crossing into descriptors.
  * 2. Runs the PulseGenerator to simulate the electronic signal shape.
- * 3. Runs other tools (e.g., OptimalFilter, CrossTalk) to produce the final
- * cell object.
+ * 3. Runs other tools (e.g., OptimalFilter, CrossTalk) to produce the final cell energy/time.
  */
 StatusCode CaloCellMaker::post_execute(EventContext &ctx) const {
-
   SG::ReadHandle<xAOD::CaloHitContainer> hits(m_hitsKey, ctx);
 
   if (!hits.isValid()) {
-    MSG_FATAL(
-        "It's not possible to retrieve the CaloHitContainer using this key: "
-        << m_hitsKey);
+    MSG_FATAL("It's not possible to retrieve CaloHitContainer using key: " << m_hitsKey);
+    return StatusCode::FAILURE;
   }
 
-  SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey,
-                                                               ctx);
+  SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey, ctx);
 
   if (!collection.isValid()) {
-    MSG_FATAL("It's not possible to retrieve the CaloDetDescriptorCollection "
-              "using this key: "
-              << m_collectionKey);
+    MSG_FATAL("It's not possible to retrieve CaloDetDescriptorCollection using key: " << m_collectionKey);
+    return StatusCode::FAILURE;
   }
 
-  //
-  // Digitalization
-  //
+  // (step 1) Transfer hit energy and generate the pulse for all active cells
+  if (m_pulseGenerator) {
+    for (const auto &hit : **hits.ptr()) {
+      if (!hit) continue;
+      xAOD::CaloDetDescriptor *descriptor = nullptr;
 
-  //
-  // (step 1) Generate the pulse for all cells
-  //
+      if (collection->retrieve(hit->hash(), descriptor)) {
+        if (descriptor->hash() != hit->hash()) {
+          MSG_FATAL("Descriptor hash code is different than hit hash code. Abort!");
+          return StatusCode::FAILURE;
+        }
+
+        for (int bcid = hit->bcid_start(); bcid <= hit->bcid_end(); ++bcid) {
+          descriptor->edep(bcid, hit->edep(bcid));
+          descriptor->tof(bcid, hit->tof(bcid));
+        }
+
+        if (m_pulseGenerator->execute(ctx, descriptor).isFailure()) {
+          MSG_ERROR("It's not possible to execute Pulse generator.");
+          return StatusCode::FAILURE;
+        }
+      }
+    } // loop over all hits
+  }
+
+  // (step 2) Apply all configured reconstruction/digitization tools
   for (const auto &hit : **hits.ptr()) {
+    if (!hit) continue;
     xAOD::CaloDetDescriptor *descriptor = nullptr;
 
-    // Check if the current hit allow to this cells collection
     if (collection->retrieve(hit->hash(), descriptor)) {
       if (descriptor->hash() != hit->hash()) {
-        MSG_FATAL(
-            "Descriptor hash code is different than hit hash code. Abort!");
-      }
-
-      for (int bcid = hit->bcid_start(); bcid <= hit->bcid_end(); ++bcid) {
-        // transfer truth energy for each bunch crossing to descriptor
-        descriptor->edep(bcid, hit->edep(bcid));
-        descriptor->tof(bcid, hit->tof(bcid));
-      }
-
-      if (m_pulseGenerator->execute(ctx, descriptor).isFailure()) {
-        MSG_ERROR("It's not possible to execute Pulse generator.");
+        MSG_FATAL("Descriptor hash code is different than hit hash code. Abort!");
         return StatusCode::FAILURE;
-      }
-    }
-
-  } // loop over all hits
-
-  for (const auto &hit : **hits.ptr()) {
-    xAOD::CaloDetDescriptor *descriptor = nullptr;
-
-    // Check if the current hit allow to this cells collection
-    if (collection->retrieve(hit->hash(), descriptor)) {
-      if (descriptor->hash() != hit->hash()) {
-        MSG_FATAL(
-            "Descriptor hash code is different than hit hash code. Abort!");
       }
 
       for (auto tool : m_toolHandles) {
-        // digitalization
-        if (tool->execute(ctx, descriptor).isFailure()) {
-          MSG_ERROR("It's not possible to execute the tool with name "
-                    << tool->name());
+        if (tool && tool->execute(ctx, descriptor).isFailure()) {
+          MSG_ERROR("It's not possible to execute tool with name " << tool->name());
           return StatusCode::FAILURE;
         }
       }
     }
-
   } // loop over all hits
 
   return StatusCode::SUCCESS;
@@ -286,15 +284,12 @@ StatusCode CaloCellMaker::post_execute(EventContext &ctx) const {
 //!=====================================================================
 
 StatusCode CaloCellMaker::fillHistograms(EventContext &ctx) const {
-
   auto store = ctx.getStoreGateSvc();
-  SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey,
-                                                               ctx);
+  SG::ReadHandle<xAOD::CaloDetDescriptorCollection> collection(m_collectionKey, ctx);
 
   if (!collection.isValid()) {
-    MSG_FATAL("It's not possible to retrieve the CaloDetDescriptorCollection "
-              "using this key: "
-              << m_collectionKey);
+    MSG_FATAL("It's not possible to retrieve CaloDetDescriptorCollection using key: " << m_collectionKey);
+    return StatusCode::FAILURE;
   }
 
   store->cd(m_histPath);
@@ -302,8 +297,8 @@ StatusCode CaloCellMaker::fillHistograms(EventContext &ctx) const {
   const xAOD::CaloDetDescriptor *hotCell = nullptr;
 
   for (const auto &p : **collection.ptr()) {
-
     const auto *cell = p.second;
+    if (!cell) continue;
 
     if (!hotCell)
       hotCell = cell;
@@ -336,7 +331,6 @@ StatusCode CaloCellMaker::fillHistograms(EventContext &ctx) const {
       samples.push_back(samp);
     TGraph *graph = new TGraph(pulse.size(), samples.data(), pulse.data());
     graph->SetName("test");
-    // raph->Fit("pol5");
     store->add(graph);
     graph->Write();
   }
@@ -349,7 +343,7 @@ StatusCode CaloCellMaker::fillHistograms(EventContext &ctx) const {
 int CaloCellMaker::find(const std::vector<float> &vec, float value) const {
   auto binIterator =
       std::adjacent_find(vec.begin(), vec.end(), [=](float left, float right) {
-        return left < value and value <= right;
+        return left < value && value <= right;
       });
   if (binIterator == vec.end())
     return -1;

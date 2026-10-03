@@ -4,37 +4,66 @@
 
 ---
 
+## Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    subgraph StoreGate["StoreGate EventContext"]
+        Clusters["xAOD::CaloClusterContainer<br/>(InputClusterKey)"]
+        Electrons["xAOD::ElectronContainer<br/>(OutputElectronKey)"]
+        Histograms[("StoreGate Histograms<br/>(HistogramPath)")]
+    end
+
+    subgraph Algorithm["ElectronMaker Algorithm"]
+        ClusLoop["Iterate over CaloClusters"]
+        Link["Set ElementLink&lt;CaloCluster&gt;<br/>(m_clusterKey, clus_idx)"]
+        PID["evaluatePID (Single Pass)<br/>Central (rhad, reta, eratio)<br/>Forward (Moments)"]
+        CreateEl["Create xAOD::Electron<br/>Set PID flags (Tight, Medium, Loose, VLoose)"]
+        HistFill["fillHistograms<br/>(el_e, el_et, el_eta, el_phi, el_pid)"]
+    end
+
+    Clusters --> ClusLoop
+    ClusLoop --> Link
+    ClusLoop --> PID
+    PID --> CreateEl
+    Link --> CreateEl
+    CreateEl --> Electrons
+    Electrons --> HistFill
+    HistFill --> Histograms
+```
+
+---
+
 ## How It Works
 
 The `ElectronMaker` algorithm processes clusters event-by-event:
 
-1. **Cluster Retrieval**: Reads a collection of `CaloCluster` candidates from the StoreGate (`InputClusterKey`).
-2. **Identification & Cut Evaluation**: For each cluster, it checks whether it satisfies central or forward region cuts.
-   - **Central Region Selection**: Uses a set of cuts defined by the `getIsEMCuts` helper for the following variables:
-     - `etHad`: Energy leakage fraction into the hadronic calorimeter.
-     - `rEta`: Lateral shower shape parameter (ratio of energy in $3\times7$ cells to energy in $7\times7$ cells).
-     - `eRatio`: Ratio of the energy difference between the two highest-energy cells over their sum in the strip layer.
-   - **Forward Region Selection**: Employs cluster moment cuts:
-     - `SecondLambda`: Second moment of the shower depth/lateral width.
-     - `LateralMom`: Lateral energy distribution moment.
-     - `LongMom`: Longitudinal energy distribution moment.
-     - `FracMax`: Energy fraction of the hottest cell.
-     - `SecondR`: Second radial moment.
-     - `LambdaCenter`: Center of gravity depth of the shower.
-3. **Electron Candidate Creation**: Candidates that pass the selection are reconstructed as `Electron` objects, flagged with their respective working points, and saved to the output `ElectronContainer` (`OutputElectronKey`).
+1. **Cluster Retrieval**: Reads a collection of `CaloCluster` candidates from StoreGate (`InputClusterKey`).
+2. **Identification & Cut Evaluation (`evaluatePID`)**: For each cluster, evaluates all four operating points in a single pass:
+   - **Central Region Selection** ($|\eta| \le 2.5$): Uses rectangular cuts on shower shape variables:
+     - `rhad`: Hadronic leakage fraction ($E_{\text{had}} / E_{\text{EM}}$).
+     - `reta`: Lateral shower shape parameter ($E_{3\times7} / E_{7\times7}$ in EM2).
+     - `eratio`: Strip layer energy ratio ($ (E_{\text{max1}} - E_{\text{max2}}) / (E_{\text{max1}} + E_{\text{max2}}) $).
+   - **Forward Region Selection** ($|\eta| > 2.5$): Employs cluster longitudinal/radial shower moments:
+     - `secondLambda`: Second moment of the shower depth/lateral width.
+     - `lateralMom`: Lateral energy distribution moment.
+     - `longitudinalMom`: Longitudinal energy distribution moment.
+     - `fracMax`: Energy fraction of the hottest cell.
+     - `secondR`: Second radial moment.
+     - `lambdaCenter`: Center of gravity depth of the shower.
+3. **Electron Candidate Creation**: Reconstructs `xAOD::Electron` objects, binds them to parent clusters via lazy `ElementLink<CaloCluster>`, flags PID decisions, and records them in StoreGate (`OutputElectronKey`).
+4. **Histograms & Monitoring**: Fills 1D control histograms (`el_e`, `el_et`, `el_eta`, `el_phi`, and `el_pid`) in StoreGate under `HistogramPath`.
 
 ---
 
 ## Supported Working Points & Central Cut Values
 
-The identification supports four distinct operating points (working points):
-
-| Working Point | `etHad` Cut | `rEta` Cut | `eRatio` Cut |
+| Working Point | `rhad` Cut | `reta` Cut | `eratio` Cut |
 | :--- | :--- | :--- | :--- |
-| **`vloose`** | `0.157` | `0.752` | `0.52` |
-| **`loose`** | `0.1218` | `0.57` | `0.47` |
-| **`medium`** | `0.0270375` | `0.814625` | `0.57` |
-| **`tight`** | `0.0270375` | `0.83125` | `0.65` |
+| **`vloose`** | $\le 0.157$ | $\ge 0.752$ | $\ge 0.52$ |
+| **`loose`** | $\le 0.1218$ | $\ge 0.57$ | $\ge 0.47$ |
+| **`medium`** | $\le 0.0270375$ | $\ge 0.814625$ | $\ge 0.57$ |
+| **`tight`** | $\le 0.0270375$ | $\ge 0.83125$ | $\ge 0.65$ |
 
 ---
 
@@ -49,43 +78,40 @@ def ElectronBuilderCfg(
     InputClusterKey  : str,
     OutputElectronKey: str,
     OutputLevel      : int = 0, 
-) -> Configurable
+    HistogramPath    : str = "Expert/Electrons",
+) -> Configurable:
 ```
 
 ### Parameters
 * **`name`** (`str`): Name of the `ElectronMaker` algorithm instance.
-* **`InputClusterKey`** (`str`): StoreGate key of the input `CaloClusterContainer`.
-* **`OutputElectronKey`** (`str`): StoreGate key for the final reconstructed `ElectronContainer`.
+* **`InputClusterKey`** (`str`): StoreGate key of the input `xAOD::CaloClusterContainer`.
+* **`OutputElectronKey`** (`str`): StoreGate key for the final reconstructed `xAOD::ElectronContainer`.
 * **`OutputLevel`** (`int`, default `0`): Verbosity logging level.
+* **`HistogramPath`** (`str`, default `"Expert/Electrons"`): Directory in StoreGate for histogram booking.
 
 ---
 
 ## Python Configuration Example
 
-Below is an example showing how to import, configure, and register `ElectronBuilderCfg` in a job configuration script:
-
 ```python
 import ROOT
 from GaugiKernel import LoggingLevel, ComponentAccumulator
-from EgammaBuilder import ElectronBuilderCfg
+from EgammaBuilder import ElectronBuilderCfg, ElectronWorkingPoint
 
 def configure_egamma_job():
-    # 1. Initialize the ComponentAccumulator for managing job components
     acc = ComponentAccumulator("EgammaJobAccumulator", "output.AOD.root")
     output_level = LoggingLevel.INFO
 
-    # 2. Configure the Electron Builder
-    # Reads clusters from "CaloClusters" and writes reconstructed electrons to "Electrons"
+    # Configure the Electron Builder
     egamma_alg = ElectronBuilderCfg(
         name="L0ElectronBuilder",
         InputClusterKey="CaloClusters",
         OutputElectronKey="Electrons",
-        OutputLevel=output_level
+        OutputLevel=output_level,
+        HistogramPath="Expert/Electrons",
     )
     
-    # Register the configured algorithm tool in the accumulator
     acc.add(egamma_alg)
-
     return acc
 
 if __name__ == "__main__":

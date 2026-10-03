@@ -1,34 +1,30 @@
 #ifndef CaloRingsConverter_h
 #define CaloRingsConverter_h
 
-/** simulator includes **/
 #include "CaloRings/CaloRings.h"
-#include "CaloCluster/CaloClusterConverter.h"
+#include <vector>
+#include <cstdint>
 
-namespace xAOD{
+namespace xAOD {
 
-    struct CaloRings_t{
-        int cluster_link;
-        std::vector<float> rings;
-    };
+  struct CaloRings_t {
+    uint64_t           cluster_key_hash;
+    uint32_t           cluster_index;
+    std::vector<float> rings;
+  };
 
-    class CaloRingsConverter{
+  class CaloRingsConverter {
+  public:
+    CaloRingsConverter() = default;
+    ~CaloRingsConverter() = default;
 
-        public:
-            CaloRingsConverter()=default;
-            ~CaloRingsConverter()=default;
+    // Convert an EDM class object into a persistent struct
+    bool convert(const CaloRings *rings, CaloRings_t &rings_t);
 
-            // convert a class object into a struct
-            bool convert( const CaloRings *, CaloRings_t & ) ;
-            bool convert( const CaloRings_t &rings_t, CaloRings *&rings );
+    // Convert a persistent struct into an EDM class object
+    bool convert(const CaloRings_t &rings_t, CaloRings *&rings);
+  };
 
-        private:
+} // namespace xAOD
 
-    };
-
-
-
-}
 #endif
-
-

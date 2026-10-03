@@ -1,4 +1,3 @@
-
 #include "GaugiKernel/MsgStream.h"
 #include "GaugiKernel/Property.h"
 #include "GaugiKernel/Algorithm.h"
@@ -9,6 +8,9 @@
 
 #include "GaugiKernel/DataHandle.h"
 #include "GaugiKernel/StoreGate.h"
+#include "GaugiKernel/EDM.h"
+#include "GaugiKernel/StringHash.h"
+#include "GaugiKernel/ElementLink.h"
 
 
 #ifdef __CINT__
@@ -28,8 +30,10 @@
 #pragma link C++ class IAlgTool+;
 #pragma link C++ class Gaugi::ComponentAccumulator+;
 
-#pragma link C++ class EventContext+;
-#pragma link C++ class StoreGate+;
+#pragma link C++ class Gaugi::EDM+;
+#pragma link C++ class SG::EventContext+;
+#pragma link C++ class SG::StoreGate+;
+#pragma link C++ class SG::DataHandle+;
 
 
 #endif

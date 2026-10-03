@@ -50,16 +50,26 @@ StatusCode ShowerShapes::execute( SG::EventContext &/*ctx*/, Gaugi::EDM *edm ) c
   MSG_DEBUG("Calculate shower shapes for this cluster." );
   
   auto *clus = static_cast<xAOD::CaloCluster*>(edm);
+  if (!clus) {
+    return StatusCode::FAILURE;
+  }
+
   // Eratio for strip em layer (EM1, all cells must be EMB1 or EMEC1 sampling)
   auto em1Cells = clus->cells();
-	em1Cells.erase(std::remove_if(em1Cells.begin(),em1Cells.end(),
-                [](const xAOD::CaloCell* c){return (
-                  (c->descriptor()->sampling() != CaloSampling::EMB1) &&
-                  (c->descriptor()->sampling() != CaloSampling::EMEC1) );}),
-                em1Cells.end());
+  em1Cells.erase(std::remove_if(em1Cells.begin(), em1Cells.end(),
+                 [](const xAOD::CaloCell* c){
+                   if (!c || !c->descriptor()) return true;
+                   return (
+                     (c->descriptor()->sampling() != CaloSampling::EMB1) &&
+                     (c->descriptor()->sampling() != CaloSampling::EMEC1));
+                 }),
+                 em1Cells.end());
 
   std::sort(em1Cells.begin(), em1Cells.end(),
-            [](const xAOD::CaloCell* c1, const xAOD::CaloCell* c2){return c1->e() > c2->e();});
+            [](const xAOD::CaloCell* c1, const xAOD::CaloCell* c2){
+              if (!c1 || !c2) return false;
+              return c1->e() > c2->e();
+            });
   
   
   float emaxs1  = (em1Cells.size()>=4)?(em1Cells[0]->e() + em1Cells[1]->e()):0;
@@ -195,9 +205,12 @@ StatusCode ShowerShapes::execute( SG::EventContext &/*ctx*/, Gaugi::EDM *edm ) c
 float ShowerShapes::sumEnergyEM( xAOD::CaloCluster *clus, int sampling, unsigned eta_ncell, unsigned phi_ncell ) const
 {
   float energy = 0.0;
+  if (!clus) return energy;
   for ( const auto& cell : clus->cells() )
   {
+    if (!cell) continue;
     const xAOD::CaloDetDescriptor* det = cell->descriptor();
+    if (!det) continue;
     // Exclude all HEC, TILE cells from the loop...
     if (det->detector()!= Detector::TTEM) continue;
     // if PS, the cell must be PSE or PSB
@@ -237,9 +250,12 @@ float ShowerShapes::sumEnergyEM( xAOD::CaloCluster *clus, int sampling, unsigned
 float ShowerShapes::sumEnergyHAD( xAOD::CaloCluster *clus, int sampling, unsigned eta_ncell, unsigned phi_ncell ) const
 {
   float energy = 0.0;
+  if (!clus) return energy;
   for ( const auto& cell : clus->cells() )
   {
+    if (!cell) continue;
     const xAOD::CaloDetDescriptor* det = cell->descriptor();
+    if (!det) continue;
     // Exclude all EM cells from the loop...
     if (det->detector()== Detector::TTEM) continue;
     // HAD 1
@@ -280,11 +296,14 @@ float ShowerShapes::sumEnergyHAD( xAOD::CaloCluster *clus, int sampling, unsigne
  */
 float ShowerShapes::calculateWeta2( xAOD::CaloCluster *clus , unsigned eta_ncell, unsigned phi_ncell) const
 {
+  if (!clus) return 0.0;
   float En2=0.0;
   float En=0.0;
   float E=0.0;
   for ( auto& cell : clus->cells() ){
+    if (!cell) continue;
     const xAOD::CaloDetDescriptor* det = cell->descriptor();
+    if (!det) continue;
     // Only EM2 cells should be used here...
     if(det->sampling()!=CaloSampling::EMB2 && det->sampling()!=CaloSampling::EMEC2)  continue;
     
@@ -297,7 +316,9 @@ float ShowerShapes::calculateWeta2( xAOD::CaloCluster *clus , unsigned eta_ncell
       E += cell->e();
     }
   }// Loop over all cells inside of the cluster
-  return std::sqrt( (En2/E) - std::pow( (En/E),2 ) );
+  if (E <= 0.0) return 0.0;
+  float var = (En2/E) - std::pow( (En/E),2 );
+  return var > 0.0 ? std::sqrt(var) : 0.0;
 }
 
 /**

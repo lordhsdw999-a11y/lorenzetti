@@ -197,7 +197,7 @@ StatusCode RootStreamESDMaker::serialize( EventContext &ctx ) const
 
     xAOD::EventInfo_t event_t;
     xAOD::EventInfoConverter cnv;
-    cnv.convert( (**event.ptr()).front(), event_t);
+    cnv.convert( (*event).front(), event_t);
     container_event->push_back(event_t);
   }
   
@@ -211,7 +211,7 @@ StatusCode RootStreamESDMaker::serialize( EventContext &ctx ) const
       MSG_FATAL("It's not possible to read the xAOD::SeedContainer from this Context using this key " << m_inputSeedsKey );
     }
 
-    for (const auto seed : **container.ptr() ){
+    for (const auto seed : *container ){
       xAOD::Seed_t seed_t;
       xAOD::SeedConverter cnv;
       cnv.convert( seed, seed_t );
@@ -245,16 +245,16 @@ StatusCode RootStreamESDMaker::serialize( EventContext &ctx ) const
 
     std::map<unsigned long int,const xAOD::CaloCell*> cell_truth_map;
 
-    for (const auto cell : **cells_truth.ptr() ){
+    for (const auto cell : *cells_truth ){
       cell_truth_map[cell->descriptor()->hash()] = cell;
     }
 
     std::map<unsigned long int,const xAOD::CaloCell*> cell_map;
 
-    for (const auto par : **particles.ptr() )
+    for (const auto par : *particles )
     {
         //MSG_DEBUG("New particle...");
-        for (const auto cell : **container.ptr() ){
+        for (const auto cell : *container ){
 
             const xAOD::CaloDetDescriptor *descriptor = cell->descriptor();
             float deltaEta = std::abs( par->eta() - descriptor->eta());
@@ -314,7 +314,7 @@ StatusCode RootStreamESDMaker::serialize( EventContext &ctx ) const
       MSG_FATAL("It's not possible to read the xAOD::TruthParticleContainer from this Context using this key " << m_inputTruthKey );
     }
 
-    for (const auto par : **container.ptr() ){
+    for (const auto par : *container ){
       xAOD::TruthParticle_t par_t;
       xAOD::TruthParticleConverter cnv;
       cnv.convert( par, par_t );

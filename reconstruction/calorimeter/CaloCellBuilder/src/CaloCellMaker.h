@@ -4,6 +4,8 @@
 #include "GaugiKernel/AlgTool.h"
 #include "GaugiKernel/Algorithm.h"
 #include "GaugiKernel/DataHandle.h"
+#include <vector>
+#include <string>
 
 /**
  * @class CaloCellMaker
@@ -15,59 +17,67 @@
  */
 class CaloCellMaker : public Gaugi::Algorithm {
 public:
-  /** Contructor **/
+  /** Constructor **/
   CaloCellMaker(std::string name);
-  /** Destructor **/
-  ~CaloCellMaker() = default;
 
-  /*! initialize the algorithm **/
+  /** Destructor **/
+  virtual ~CaloCellMaker() = default;
+
+  /*! Initialize the algorithm **/
   virtual StatusCode initialize() override;
 
-  /*! Book all histograms into the current storegate **/
+  /*! Book histograms into the current StoreGate **/
   virtual StatusCode bookHistograms(SG::EventContext &ctx) const override;
 
-  /*! Execute in step action step from geant core **/
-  virtual StatusCode execute(SG::EventContext &ctx,
-                             const G4Step *step) const override;
+  /*! Execute during Geant4 step action (no-op for cell maker) **/
+  virtual StatusCode execute(SG::EventContext &ctx, const G4Step *step) const override;
 
   /*! Execute in ComponentAccumulator **/
   virtual StatusCode execute(SG::EventContext &ctx, int /*evt*/) const override;
 
-  /*! execute before start the step action **/
+  /*! Execute before step action **/
   virtual StatusCode pre_execute(SG::EventContext &ctx) const override;
 
-  /*! execute after the step action **/
+  /*! Execute after step action (digitization loop) **/
   virtual StatusCode post_execute(SG::EventContext &ctx) const override;
 
-  /*! fill histogram in the end **/
+  /*! Fill histograms **/
   virtual StatusCode fillHistograms(SG::EventContext &ctx) const override;
 
-  /*! finalize the algorithm **/
+  /*! Finalize the algorithm **/
   virtual StatusCode finalize() override;
 
   /**
    * @brief Add a tool to the execution list.
    * @param tool Pointer to the AlgTool to be added.
    */
-  void __func__add__Tool(Gaugi::AlgTool *tool) {
+  void addTool(Gaugi::AlgTool *tool) {
     m_toolHandles.push_back(tool);
-  };
+  }
+
+  void __func__add__Tool(Gaugi::AlgTool *tool) {
+    addTool(tool);
+  }
 
   /**
    * @brief Set the pulse generator tool.
    * @param tool Pointer to the PulseGenerator tool.
    */
-  void __func__set__PulseGenerator(Gaugi::AlgTool *tool) {
+  void setPulseGenerator(Gaugi::AlgTool *tool) {
     m_pulseGenerator = tool;
-  };
+  }
+
+  void __func__set__PulseGenerator(Gaugi::AlgTool *tool) {
+    setPulseGenerator(tool);
+  }
 
 private:
   int find(const std::vector<float> &vec, float value) const;
   unsigned long int hash(unsigned bin) const;
 
-  /*! output collection key */
+  /*! Output collection key */
   std::string m_collectionKey;
-  /*! input hits key */
+  /*! Input hits key */
   std::string m_hitsKey;
   /*! Base histogram path */
   std::string m_histPath;

@@ -34,13 +34,10 @@ CaloHitMerge::CaloHitMerge( std::string name ) :
 {
   declareProperty( "InputCollectionKeys"    , m_collectionKeys={}           );
   declareProperty( "OutputHitsKey"          , m_hitsKey="Hits"              );
+  declareProperty( "FilterEmptyHits"        , m_filterEmptyHits=false       );
+  declareProperty( "MinEnergy"              , m_minEnergy=0.0               );
   declareProperty( "OutputLevel"            , m_outputLevel=1               );
 }
-
-//!=====================================================================
-
-CaloHitMerge::~CaloHitMerge()
-{;}
 
 //!=====================================================================
 
@@ -118,7 +115,15 @@ StatusCode CaloHitMerge::post_execute( EventContext &ctx ) const
 
     for (const auto &pair : **collection.ptr() )
     {
-      const xAOD::CaloHit* const_hit=pair.second;
+      const xAOD::CaloHit* const_hit = pair.second;
+      if (!const_hit) {
+        continue;
+      }
+
+      // Check if empty hit filtering is enabled
+      if (m_filterEmptyHits && const_hit->edep() <= m_minEnergy) {
+        continue;
+      }
       
       // Create the truth cell 
       auto hit = new xAOD::CaloHit( const_hit->eta(),
