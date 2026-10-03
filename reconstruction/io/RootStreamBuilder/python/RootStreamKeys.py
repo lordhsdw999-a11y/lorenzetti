@@ -1,4 +1,4 @@
-__all__ = ["recordable"]
+__all__ = ["recordable", "valid_keys"]
 
 valid_keys = [
     "EventInfo",
@@ -34,7 +34,7 @@ valid_keys = [
 ]
 
 
-def recordable(key):
+def recordable(key: str) -> str:
     if key not in valid_keys:
-        raise RuntimeError(f"Key {key} not allow to be recorded.")
+        raise RuntimeError(f"Key {key} is not allowed to be recorded.")
     return key

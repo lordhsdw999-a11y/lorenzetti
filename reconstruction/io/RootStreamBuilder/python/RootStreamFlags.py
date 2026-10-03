@@ -1,38 +1,33 @@
 __all__ = ["RootStreamHITFlags", "RootStreamESDFlags", "RootStreamAODFlags"]
 
-
 from GaugiKernel import EnumStringification
 
 
 class RootStreamHITFlags(EnumStringification):
-
-    OnlyRoI = True
-    EtaWindow = 0.4
-    PhiWindow = 0.4
+    OnlyRoI: bool = True
+    EtaWindow: float = 0.4
+    PhiWindow: float = 0.4
 
 
 class RootStreamESDFlags(EnumStringification):
-
-    EtaWindow = 0.4
-    PhiWindow = 0.4
+    EtaWindow: float = 0.4
+    PhiWindow: float = 0.4
 
 
 class RootStreamAODFlags(EnumStringification):
+    DumpCells: bool = True
 
-    DumpCells = True
+    doStdRings: bool = True
+    doCornerRings: bool = False
+    doAsymRings: bool = False
+    doStripsRings: bool = False
+    doCrossRings: bool = False
+    doCustomRings: bool = False
 
-    doStdRings = True
-    doCornerRings = False
-    doAsymRings = False
-    doStripsRings = False
-    doCrossRings = False
-    doCustomRings = False
-
-    DoSigmaCut = False
-    SigmaCut = 2.0
-    CornerShift = 3
-    CrossShift = 3
+    DoSigmaCut: bool = False
+    SigmaCut: float = 2.0
+    CornerShift: int = 3
+    CrossShift: int = 3
     CustomRingsShiftEta: list = [0]
     CustomRingsShiftPhi: list = [0]
-    StripsAxis = 0
-
+    StripsAxis: int = 0

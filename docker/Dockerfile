@@ -72,8 +72,7 @@ RUN apt install -y git
 
 ARG ROOT_VERSION
 LABEL ROOT_VERSION=${ROOT_VERSION}
-RUN git clone https://github.com/root-project/root.git
-RUN cd root && git checkout ${ROOT_VERSION}
+RUN git clone --depth 1 --branch ${ROOT_VERSION} https://github.com/root-project/root.git
 RUN cd root/ && \
     mkdir build && \
     cd build && \
@@ -90,10 +89,8 @@ ENV PYTHONPATH=/opt/root/build/lib:$PYTHONPATH
 ARG GEANT4_VERSION
 LABEL GEANT4_VERSION=${GEANT4_VERSION}
 ENV GEANT4_VERSION=${GEANT4_VERSION}
-RUN git clone https://github.com/Geant4/geant4.git && \
+RUN git clone --depth 1 --branch ${GEANT4_VERSION} https://github.com/Geant4/geant4.git && \
     cd geant4 && \
-    git config advice.detachedHead false && \
-    git checkout ${GEANT4_VERSION} && \
     mkdir build && cd build && \
     cmake -DGEANT4_INSTALL_DATA=ON \
         -DGEANT4_BUILD_MULTITHREADED=ON \
@@ -112,7 +109,7 @@ RUN apt install -y wget
 ARG PYTHIA8_VERSION
 LABEL PYTHIA8_VERSION=${PYTHIA8_VERSION}
 ENV PYTHIA8_VERSION=${PYTHIA8_VERSION}
-RUN wget https://pythia.org/download/pythia83/pythia$PYTHIA8_VERSION.tgz && \
+RUN wget https://pythia.org/releases/pythia83/pythia$PYTHIA8_VERSION.tgz && \
     tar -vxf pythia$PYTHIA8_VERSION.tgz && rm -rf pythia$PYTHIA8_VERSION.tgz && mv pythia$PYTHIA8_VERSION pythia && \
     cd pythia && \
     ./configure --with-python-config=python3-config && \
@@ -178,23 +175,21 @@ ENV LD_PRELOAD=/opt/geant4/build/BuildProducts/lib/libG4vis_management.so:/opt/g
 
 
 
-RUN git clone https://github.com/iLCSoft/LCIO.git
-RUN cd LCIO && git checkout v02-15-01    
+RUN git clone --depth 1 --branch v02-15-01 https://github.com/iLCSoft/LCIO.git
 RUN cd LCIO && mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=../install && make -j$(nproc) install
 ENV LCIO_DIR=/opt/LCIO/build
 
 
-RUN git clone https://github.com/AIDASoft/DD4hep.git
-RUN cd DD4hep && git checkout v01-33
+RUN git clone --depth 1 --branch v01-33 https://github.com/AIDASoft/DD4hep.git
 RUN cd DD4hep && mkdir build && cd build && \
     cmake -DDD4HEP_USE_GEANT4=ON -DBoost_NO_BOOST_CMAKE=ON -DBUILD_TESTING=ON -DDD4HEP_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release .. && \
     make -j$(nproc) && make install
 ENV PATH=/opt/DD4hep/build:$PATH
 
-RUN git clone https://github.com/iLCSoft/lcgeo.git
-RUN cd lcgeo && mkdir build && cd build && \
-    cmake -DBoost_NO_BOOST_CMAKE=ON  .. && \
-    make -j$(nproc)
+#RUN git clone https://github.com/iLCSoft/lcgeo.git
+#RUN cd lcgeo && mkdir build && cd build && \
+#    cmake -DBoost_NO_BOOST_CMAKE=ON  .. && \
+#    make -j$(nproc)
 
 
 

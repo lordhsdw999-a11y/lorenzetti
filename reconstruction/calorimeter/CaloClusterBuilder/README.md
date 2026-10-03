@@ -136,7 +136,7 @@ def configure_clustering(acc: ComponentAccumulator) -> None:
 ---
 
 ## 5. Dependencies
-* `core/GaugiKernel`: Algorithm and AlgTool base classes, StoreGate `EventContext`, Data Handles, `ElementLink`.
+* `kernel/GaugiKernel`: Algorithm and AlgTool base classes, StoreGate `EventContext`, Data Handles, `ElementLink`.
 * `events/CaloCell`: `xAOD::CaloCell`, `xAOD::CaloCellContainer`, `xAOD::CaloDetDescriptor`.
 * `events/EventInfo`: `xAOD::Seed`, `xAOD::SeedContainer`.
 * `events/CaloCluster`: `xAOD::CaloCluster`, `xAOD::CaloClusterContainer`.

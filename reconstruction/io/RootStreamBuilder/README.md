@@ -1,166 +1,136 @@
 # RootStreamBuilder
 
-`RootStreamBuilder` is an I/O serialization and deserialization package designed to stream event data between memory (StoreGate containers) and persistent ROOT TTree files at different data tiers (HIT, ESD, AOD, and Ntuple). It serves as the primary data interface for the Lorenzetti simulation and reconstruction chain.
+The **RootStreamBuilder** package (`reconstruction/io/RootStreamBuilder`) is the central I/O (Input/Output) component of the Lorenzetti framework for persisting and retrieving EDM (`xAOD`) objects in ROOT files using `TTree`.
+
+It provides a **generic, extensible, and data-driven** architecture:
+- **`RootStreamReader`**: Smart reader with **automatic branch discovery**, inspecting the `TTree`, instantiating matching converters, and reconstructing all containers directly in `EventContext`/`StoreGate` without requiring manual per-tier configuration (HIT, ESD, AOD).
+- **`RootStreamMaker`**: Generic writer configured via an item list (`ItemList`), serializing any requested `xAOD` container into standard `<TypeName>_<Key>` branches.
+- **`RootStreamNtupleMaker`**: Analysis algorithm flattening physical variables and calorimetric shower rings into a flat `TTree` (`events`), ideal for neural network training (Ringer) and performance studies.
 
 ---
 
-## Architecture & Data Flow
+## 1. Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Simulation["Simulation / Generator"]
-        Geant4["Geant4 Step Actions"]
+graph TD
+    subgraph Storage ["ROOT File (TTree)"]
+        B1["EventInfoContainer_EventInfo"]
+        B2["CaloCellContainer_Cells"]
+        B3["CaloClusterContainer_CaloClusters"]
+        B4["ElectronContainer_Electrons"]
     end
 
-    subgraph HIT_Tier["HIT Tier"]
-        HitMaker["RootStreamHITMaker"]
-        HitTree[("HIT ROOT File<br/>CollectionTree")]
-        HitReader["RootStreamHITReader"]
+    subgraph Reading ["RootStreamReader (Auto-Discovery)"]
+        Inspect["Inspect TTree Branches"] --> Parse["Parse TypeName and Key"]
+        Parse --> Factory["BranchHandlerFactory"]
+        Factory --> Handler["GenericBranchHandler<Container, Struct, Converter>"]
+        Handler --> SG_Record["Record into EventContext / StoreGate"]
     end
 
-    subgraph ESD_Tier["ESD Tier"]
-        ESDMaker["RootStreamESDMaker"]
-        ESDTree[("ESD ROOT File<br/>CollectionTree")]
-        ESDReader["RootStreamESDReader"]
+    subgraph Memory ["EventContext / StoreGate"]
+        C1["xAOD::EventInfoContainer ('EventInfo')"]
+        C2["xAOD::CaloCellContainer ('Cells')"]
+        C3["xAOD::CaloClusterContainer ('CaloClusters')"]
+        C4["xAOD::ElectronContainer ('Electrons')"]
     end
 
-    subgraph AOD_Tier["AOD Tier"]
-        AODMaker["RootStreamAODMaker"]
-        AODTree[("AOD ROOT File<br/>CollectionTree")]
-        AODReader["RootStreamAODReader"]
+    subgraph Writing ["RootStreamMaker"]
+        ItemList["ItemList: ['Type#Key', ...]"] --> MakeHandler["Create Branch Handlers"]
+        MakeHandler --> SG_Read["Read from EventContext"]
+        SG_Read --> Convert["Convert xAOD -> C Structs"]
+        Convert --> FillTree["Fill TTree Branches"]
     end
 
-    subgraph Analysis["Analysis / ML Tier"]
-        NtupleMaker["RootStreamNtupleMaker"]
-        FlatNtuple[("Flat Ntuple ROOT File<br/>events Tree")]
-    end
-
-    subgraph StoreGate["StoreGate EventContext"]
-        Hits["xAOD::CaloHitContainer"]
-        Cells["xAOD::CaloCellContainer"]
-        Clusters["xAOD::CaloClusterContainer"]
-        Rings["xAOD::CaloRingsContainer"]
-        Electrons["xAOD::ElectronContainer"]
-    end
-
-    Geant4 --> Hits
-    Hits --> HitMaker --> HitTree --> HitReader --> Hits
-    Hits --> Cells
-    Cells --> ESDMaker --> ESDTree --> ESDReader --> Cells
-    Cells --> Clusters --> Rings --> Electrons
-    Clusters & Rings & Electrons --> AODMaker --> AODTree --> AODReader --> Clusters & Rings & Electrons
-    Clusters & Rings & Electrons --> NtupleMaker --> FlatNtuple
+    Storage --> Inspect
+    SG_Record --> Memory
+    Memory --> SG_Read
+    FillTree --> Storage
 ```
 
 ---
 
-## Data Tiers
+## 2. C++ Components
 
-The package supports four distinct event formats, each catering to different levels of analysis detail:
-
-### 1. HIT Tier
-* **Maker**: `RootStreamHITMaker` (via `RootStreamHITMakerCfg`)
-* **Reader**: `RootStreamHITReader`
-* **Description**: Handles the streaming of raw calorimeter hits (`CaloHit`), truth particles (`TruthParticle`), track seeds (`Seed`), and event headers (`EventInfo`).
-* **Key Features**: Supports streaming only inside a Region of Interest (RoI) window via `OnlyRoI` flag to reduce file size.
-
-### 2. ESD (Event Summary Data) Tier
-* **Maker**: `RootStreamESDMaker` (via `RootStreamESDMakerCfg`)
-* **Reader**: `RootStreamESDReader`
-* **Description**: Streams detailed detector-level reconstruction outputs, including all calorimeter digitized cells (`CaloCell`), truth cell deposits (`CaloCellTruth`), track seeds, truth particles, and event headers. Necessary for detailed cell-level cluster studies.
-
-### 3. AOD (Analysis Object Data) Tier
-* **Maker**: `RootStreamAODMaker` (via `RootStreamAODMakerCfg`)
-* **Reader**: `RootStreamAODReader`
-* **Description**: Streams high-level reconstructed objects such as calorimeter clusters (`CaloCluster`), concentric rings (`CaloRings`), reconstructed electrons (`Electron`), track seeds, truth particles, and event headers. Persistent structs (`*_t`) preserve relational links via 64-bit string key hashing and container indices.
-
-### 4. Ntuple Tier
-* **Maker**: `RootStreamNtupleMaker` (via `RootStreamNtupleMakerCfg`)
-* **Description**: Re-formats reconstructed analysis objects into a simplified, flat ROOT TTree format (typically named `events`). Designed for fast statistical plotting, machine learning model training (e.g. classification or anomaly detection), and trigger simulation.
+| Class / Interface | Description |
+| :--- | :--- |
+| `IBranchHandler` | Polymorphic interface for binding, reading, and writing branches in the `TTree`. |
+| `GenericBranchHandler<TContainer, TStruct, TConverter>` | Type-safe C++ template handler for any `xAOD` container type. |
+| `BranchHandlerFactory` | Handler factory based on type name (`TypeName`), instantiating the correct template. |
+| `RootStreamReader` | Algorithm that discovers branches dynamically from the input tree and registers containers. |
+| `RootStreamMaker` | Algorithm that reads containers from `EventContext` specified in `ItemList` and fills the `TTree`. |
+| `RootStreamNtupleMaker` | Analysis algorithm producing flat `TTree` structures (e.g. `cl_et`, `cl_rings`, etc.). |
 
 ---
 
-## Configuration Flags
+## 3. Branch Naming Convention
 
-Default StoreGate keys and tier-specific parameters are managed via the following modules:
-
-### 1. `RootStreamKeys`
-Defines the standard StoreGate collection keys used throughout the data chain:
-* `EventInfoKey` (default: `"EventInfo"`)
-* `TruthParticleKey` (default: `"TruthParticles"`)
-* `CaloCellsKey` (default: `"Cells"`)
-* `CaloClustersKey` (default: `"CaloClusters"`)
-* `ElectronsKey` (default: `"Electrons"`)
-
-### 2. `RootStreamFlags`
-* **`RootStreamHITFlags.OnlyRoI`** (`bool`, default `True`): Toggles whether to save hits only within the active Region of Interest (RoI).
-* **`RootStreamESDFlags.EtaWindow` / `PhiWindow`** (`float`, default `0.4`): Dimensions of the RoI cone around seed centers.
-* **`RootStreamAODFlags.DumpCells`** (`bool`, default `False`): Optionally streams raw cells alongside AOD physics objects.
+All persistent branches follow the standard format:
+```
+<TypeName>_<Key>
+```
+Examples:
+- `EventInfoContainer_EventInfo`
+- `CaloCellContainer_Cells`
+- `CaloClusterContainer_CaloClusters`
+- `CaloRingsContainer_Rings`
+- `ElectronContainer_Electrons`
 
 ---
 
-## Python Configuration Examples
+## 4. Python Configuration
 
-### Example 1: Writing ESD Data (Maker Job)
+### 4.1. Automatic Reading (`RootStreamReader`)
+
+With auto-discovery, there is no need to declare individual keys:
+
 ```python
-import ROOT
-from GaugiKernel import LoggingLevel, ComponentAccumulator
-from RootStreamBuilder import RootStreamESDMakerCfg
+from RootStreamBuilder import RootStreamReaderCfg
 
-def configure_esd_writer_job():
-    acc = ComponentAccumulator("ESDWriterAccumulator", "output.ESD.root")
-    output_level = LoggingLevel.INFO
-
-    esd_writer = RootStreamESDMakerCfg(
-        name="L0ESDStreamer",
-        InputEventKey="EventInfo",
-        InputTruthKey="TruthParticles",
-        InputCellsKey="Cells",
-        InputSeedsKey="Seeds",
-        InputCellsTruthKey="TruthCells",
-        OutputLevel=output_level,
-        NtupleName="CollectionTree"
-    )
-
-    acc.add(esd_writer)
-    return acc
-
-if __name__ == "__main__":
-    job_acc = configure_esd_writer_job()
-    print("ESD Writer configured successfully!")
+# Automatically reads all branches in the input ROOT file and TTree
+reader = RootStreamReaderCfg(
+    name="StreamReader",
+    InputFile="output_aod.root",
+    TreeName="CollectionTree"
+)
 ```
 
-### Example 2: Reading AOD Data (Reader Job)
+### 4.2. Flexible Writing (`RootStreamMaker`)
+
+Specify the containers to persist using `ItemList` with the `"TypeName#Key"` syntax:
+
 ```python
-import ROOT
-from GaugiKernel import LoggingLevel, ComponentAccumulator
-from RootStreamBuilder import RootStreamAODReader
+from RootStreamBuilder import RootStreamMakerCfg
 
-def configure_aod_reader_job(input_file_path: str):
-    acc = ComponentAccumulator("AODReaderAccumulator")
-    output_level = LoggingLevel.INFO
+writer = RootStreamMakerCfg(
+    name="StreamAODMaker",
+    ItemList=[
+        "EventInfoContainer#EventInfo",
+        "TruthParticleContainer#Particles",
+        "CaloClusterContainer#CaloClusters",
+        "CaloRingsContainer#Rings",
+        "ElectronContainer#Electrons"
+    ],
+    TreeName="CollectionTree"
+)
+```
 
-    aod_reader = RootStreamAODReader(
-        name="L0AODReader",
-        InputFile=input_file_path,
-        OutputEventKey="EventInfo",
-        OutputTruthKey="TruthParticles",
-        OutputClusterKey="CaloClusters",
-        OutputRingerKeys=["RingsL0"],
-        OutputRingerL0Key="RingsL0",
-        OutputSeedsKey="Seeds",
-        OutputElectronKey="Electrons",
-        OutputTruthClusterKey="TruthClusters",
-        OutputTruthRingerKeys=["TruthRingsL0"],
-        OutputTruthElectronKey="TruthElectrons",
-        OutputLevel=output_level,
-        NtupleName="CollectionTree"
-    )
+Convenience presets are also available for backward compatibility:
+- `RootStreamAODMakerCfg(...)`
+- `RootStreamESDMakerCfg(...)`
+- `RootStreamHITMakerCfg(...)`
 
-    aod_reader.merge(acc)
-    return acc
+### 4.3. Flat Analysis Ntuples (`RootStreamNtupleMaker`)
 
-if __name__ == "__main__":
-    job_acc = configure_aod_reader_job("input.AOD.root")
-    print("AOD Reader configured successfully!")
+```python
+from RootStreamBuilder import RootStreamNtupleMakerCfg
+
+ntuple_maker = RootStreamNtupleMakerCfg(
+    name="NtupleMaker",
+    InputEventKey="EventInfo",
+    InputTruthKey="Particles",
+    InputClusterKey="CaloClusters",
+    InputRingerKeys=["Rings"],
+    InputElectronKey="Electrons",
+    OutputNtupleName="events"
+)
 ```

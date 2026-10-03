@@ -11,9 +11,9 @@ file(GLOB_RECURSE HEADERS
 
 
 include_directories(${CMAKE_SOURCE_DIR} ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../core/GaugiKernel)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../core/G4Kernel)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../genkernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/GaugiKernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/G4Kernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/GenKernel)
 
 # included by hand, should be fixed for future
 include_directories( ${FASTJET_INCLUDE_DIRS} )

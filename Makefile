@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 DOCKER_NAMESPACE=lorenzetti
-SETUP_SCRIPT=../core/GaugiKernel/cmake/lzt_setup.sh
+SETUP_SCRIPT=../kernel/GaugiKernel/cmake/lzt_setup.sh
 
 all:  build_sources
 
@@ -25,7 +25,7 @@ docs:
 	mkdir -p doc/doxygen/xml doc/source/api doc/source/cxx doc/source/tutorials && \
 	cp notebooks/*.ipynb doc/source/tutorials/ && \
 	printf "Python API\n==========\n\n.. toctree::\n   :maxdepth: 2\n\n   modules\n" > doc/source/api/index.rst && \
-	printf "C++ API\n=======\n\n.. toctree::\n   :maxdepth: 2\n\n   core\n   events\n   generator\n   geometry\n   reconstruction\n" > doc/source/cxx/index.rst && \
+	printf "C++ API\n=======\n\n.. toctree::\n   :maxdepth: 2\n\n   kernel\n   events\n   generator\n   geometry\n   reconstruction\n" > doc/source/cxx/index.rst && \
 	cd doc && doxygen Doxyfile && cd .. && \
 	$(VENV_DOC)/bin/python doc/setup_doc_env.py && \
 	$(VENV_DOC)/bin/python -m sphinx.ext.apidoc -o doc/source/api doc/mock_site_packages -f && \

@@ -55,7 +55,7 @@ Here is an overview of the repository structure:
 .. code-block:: text
 
     📂 lorenzetti/
-    ├── 📂 core/             # Core libraries, utilities, and common tools.
+    ├── 📂 kernel/           # Core framework infrastructure, utilities, and common tools.
     ├── 📂 events/           # Event data models (EDM) and ROOT I/O handling definitions.
     ├── 📂 generator/        # Physics event generator interfaces (e.g., Pythia8).
     ├── 📂 geometry/         # Detector geometry construction and definitions using Geant4.

@@ -5,101 +5,29 @@
 
 # Lorenzetti Framework
 
-Lorenzetti is a modular High Energy Physics (HEP) simulation, digitization, and reconstruction framework developed for research and development in calorimeter signal processing, trigger algorithms, and machine learning applications.
+Lorenzetti is a modular High Energy Physics (HEP) simulation, digitization, and reconstruction framework designed for research and development in calorimeter signal processing, trigger algorithms, and machine learning applications.
 
-Built upon **Geant4**, **Pythia8**, and **ROOT**, Lorenzetti models the complete calorimeter chain: from primary particle interactions and energy shower evolution to electronic pulse shaping, noise injection, cross-talk, optimal filtering (OF/COF), cluster reconstruction, and shower shape evaluation.
-
----
-
-## 1. End-to-End Processing Pipeline
-
-```mermaid
-graph TD
-    subgraph GenStage ["1. Physics Generation (Pythia8 / HepMC3)"]
-        Gen["gen_zee.py / gen_jets.py / gen_single.py"]
-        Evt["EVT.root<br/>(EventInfo, TruthParticles, Seeds)"]
-        Gen --> Evt
-    end
-
-    subgraph SimStage ["2. Detector Simulation (Geant4)"]
-        Sim["simu_trf.py (CaloHitMaker &amp; CaloHitMerge)"]
-        Hit["HIT.root<br/>(CaloHits across Bunch Crossings)"]
-        Evt --> Sim
-        Sim --> Hit
-    end
-
-    subgraph DigitStage ["3. Digitization &amp; Signal Processing"]
-        Digit["digit_trf.py (PulseGenerator, Noise, OptimalFilter, CrossTalk)"]
-        Esd["ESD.root<br/>(CaloCells &amp; CaloDetDescriptors)"]
-        Hit --> Digit
-        Digit --> Esd
-    end
-
-    subgraph RecoStage ["4. Reconstruction &amp; ID"]
-        Reco["reco_trf.py (CaloClusterBuilder &rarr; CaloRingsBuilder &rarr; EgammaBuilder)"]
-        Aod["AOD.root<br/>(CaloClusters, CaloRings, Electrons)"]
-        Esd --> Reco
-        Reco --> Aod
-    end
-
-    subgraph IOStage ["5. Analysis &amp; Streaming (io/root/RootStreamBuilder)"]
-        Ntuple["ntuple_trf.py (RootStreamNtupleMaker)"]
-        FlatTree["NTUPLE.root<br/>(Flat TTree for ML / Ringer Training)"]
-        Aod --> Ntuple
-        Ntuple --> FlatTree
-    end
-```
+Built upon **Geant4**, **Pythia8**, and **ROOT**, the framework models the complete calorimeter readout chain: primary particle generation, energy shower evolution in detector media, electronic pulse shaping across bunch crossings, Gaussian noise injection, cell-to-cell cross-talk, Optimal Filtering (OF/COF) signal reconstruction, topological clustering, concentric shower ring summation (Ringer), and electron/photon identification.
 
 ---
 
-## 2. Repository Structure
+## Installation
 
-| Directory | Scope |
-| :--- | :--- |
-| `core/` | Core framework infrastructure (`GaugiKernel`, `G4Kernel`, StoreGate `EventContext`, Data Handles). |
-| `events/` | Event Data Model (EDM) classes (`CaloHit`, `CaloCell`, `CaloCluster`, `CaloRings`, `Egamma`, `EventInfo`). |
-| `generator/` | Physics event generator interfaces and filters based on Pythia8 (`Zee`, `Jets`, `Minbias`, `SingleParticle`). |
-| `geometry/` | Detector geometry construction, material definitions, and segmentation descriptors in Geant4. |
-| `reconstruction/` | Digitization, pulse shaping, clustering, concentric ring summation, and electron identification. |
-| `io/root/` | ROOT I/O streaming package (`RootStreamBuilder`) with dynamic auto-discovery reader and item-list writer. |
-| `context/` | Framework constitution, architectural blueprints, quality gates, and subsystem specifications. |
-| `examples/` | Production job cards, execution scripts, and multi-threaded processing utilities (`prun_jobs.py`). |
+### Singularity / Docker (Recommended)
 
----
-
-## 3. Calorimeter Geometry & Granularity
-
-Lorenzetti implements a cylindrical $4\pi$ sampling calorimeter layout:
-
-| System | Sampling Layer | Material (Absorber / Active) | Granularity ($\Delta\eta \times \Delta\phi$) |
-| :--- | :---: | :--- | :---: |
-| **ECAL (Barrel)** | 0 (Pre-Sampler) | Lead / Liquid Argon ($Pb / LAr$) | $0.025 \times 0.1$ |
-| | 1 (Front Strips) | Lead / Liquid Argon ($Pb / LAr$) | $0.003125 \times 0.1$ |
-| | 2 (Middle) | Lead / Liquid Argon ($Pb / LAr$) | $0.025 \times 0.025$ |
-| | 3 (Back) | Lead / Liquid Argon ($Pb / LAr$) | $0.050 \times 0.025$ |
-| **TileCal (Barrel)** | 1 (Front) | Iron / Scintillator ($Fe / \text{Scint.}$) | $0.1 \times 0.1$ |
-| | 2 (Middle) | Iron / Scintillator ($Fe / \text{Scint.}$) | $0.1 \times 0.1$ |
-| | 3 (Back) | Iron / Scintillator ($Fe / \text{Scint.}$) | $0.2 \times 0.1$ |
-| **EMEC (EndCap)** | 0 (Pre-Sampler) | Lead / Liquid Argon ($Pb / LAr$) | $0.025 \times 0.1$ |
-| | 1 (Front) | Lead / Liquid Argon ($Pb / LAr$) | $(0.003\text{--}0.006) \times 0.1$ |
-| | 2 (Middle) | Lead / Liquid Argon ($Pb / LAr$) | $0.025 \times 0.025$ |
-| | 3 (Back) | Lead / Liquid Argon ($Pb / LAr$) | $0.050 \times 0.025$ |
-| **HEC (EndCap)** | 1--3 (All Layers) | Copper / Liquid Argon ($Cu / LAr$) | $0.1 \times 0.1 \text{ to } 0.2 \times 0.2$ |
-
----
-
-## 4. Installation & Environment
-
-### 4.1. Using Singularity / Docker (Recommended)
-
-Pre-built container images contain the complete runtime stack (ROOT, Geant4, Pythia8, HepMC3, FastJet):
+Pre-built container images provide the full environment (ROOT, Geant4, Pythia8, HepMC3, FastJet) with all dependencies pre-configured:
 
 ```bash
+# Pull container image
 singularity pull docker://lorenzetti/lorenzetti:latest
+
+# Enter container shell
 singularity run lorenzetti_latest.sif
 ```
 
-### 4.2. Local Build
+### Local Build
+
+To build the framework from source inside the container environment:
 
 ```bash
 git clone https://github.com/lorenzetti-ufrj-br/lorenzetti.git
@@ -110,39 +38,42 @@ source build/lzt_setup.sh
 
 ---
 
-## 5. Execution Example: $Z \to e^+e^-$ Sequence
+## Calorimeter Implementation
 
-```bash
-# 1. Physics event generation
-python generator/filters/scripts/gen_zee.py -o Zee.EVT.root --num-events 10
+Lorenzetti implements a high-granularity cylindrical $4\pi$ sampling calorimeter layout mimicking modern LHC detector designs (e.g. ATLAS). It is divided into two primary systems:
 
-# 2. Geant4 detector simulation
-python reconstruction/reco/scripts/simu_trf.py -i Zee.EVT.root -o Zee.HIT.root -nt 10
+### 1. Electromagnetic Calorimeter (ECAL)
+Designed for high-precision measurement of electrons and photons:
+- **Barrel (EMB)**: Lead ($Pb$) absorber plates interleaved with Liquid Argon ($LAr$) active gaps. Composed of a thin Pre-Sampler (Layer 0), a finely segmented front strip layer (Layer 1) for $\pi^0/\gamma$ separation, a middle layer (Layer 2) containing the bulk of electromagnetic shower energy, and a back layer (Layer 3) to measure longitudinal leakage.
+- **EndCap (EMEC)**: Lead/Liquid Argon sampling layers covering the forward region ($1.5 < |\eta| < 3.2$).
 
-# 3. Calorimeter digitization and electronic signal simulation
-python reconstruction/reco/scripts/digit_trf.py -i Zee.HIT.root -o Zee.ESD.root
+### 2. Hadronic Calorimeter (HCAL)
+Surrounds the electromagnetic calorimeter to measure hadronic showers and missing transverse energy:
+- **TileCal (Barrel)**: Iron ($Fe$) absorber plates with Plastic Scintillator tiles, segmented longitudinally into three layers.
+- **HEC (EndCap)**: Copper ($Cu$) absorber plates with Liquid Argon active gaps.
 
-# 4. Reconstruction (Clusters, Concentric Rings, Electrons)
-python reconstruction/reco/scripts/reco_trf.py -i Zee.ESD.root -o Zee.AOD.root
+### Sampling Layers and Granularity
 
-# 5. Analysis Ntuple export
-python reconstruction/reco/scripts/ntuple_trf.py -i Zee.AOD.root -o Zee.NTUPLE.root
-```
+| System | Region | Layer | Name | Material (Absorber / Active) | Granularity ($\Delta\eta \times \Delta\phi$) |
+| :--- | :--- | :---: | :--- | :--- | :---: |
+| **ECAL** | Barrel | 0 | Pre-Sampler | $Pb / LAr$ | $0.025 \times 0.1$ |
+| | Barrel | 1 | Front (Strips) | $Pb / LAr$ | $0.003125 \times 0.1$ |
+| | Barrel | 2 | Middle | $Pb / LAr$ | $0.025 \times 0.025$ |
+| | Barrel | 3 | Back | $Pb / LAr$ | $0.050 \times 0.025$ |
+| | EndCap (EMEC) | 0 | Pre-Sampler | $Pb / LAr$ | $0.025 \times 0.1$ |
+| | EndCap (EMEC) | 1 | Front | $Pb / LAr$ | $(0.003\text{--}0.006) \times 0.1$ |
+| | EndCap (EMEC) | 2 | Middle | $Pb / LAr$ | $0.025 \times 0.025$ |
+| | EndCap (EMEC) | 3 | Back | $Pb / LAr$ | $0.050 \times 0.025$ |
+| **HCAL** | Barrel (TileCal) | 1 | Front | $Fe / \text{Scintillator}$ | $0.1 \times 0.1$ |
+| | Barrel (TileCal) | 2 | Middle | $Fe / \text{Scintillator}$ | $0.1 \times 0.1$ |
+| | Barrel (TileCal) | 3 | Back | $Fe / \text{Scintillator}$ | $0.2 \times 0.1$ |
+| | EndCap (HEC) | 1--3 | All Layers | $Cu / LAr$ | $0.1 \times 0.1 \text{ to } 0.2 \times 0.2$ |
+
+Detector geometry parameters (depths, materials, and segmentation) are fully configurable via Python descriptors without requiring C++ kernel recompilation.
 
 ---
 
-## 6. Continuous Integration
-
-| Test Suite | Scope | Status |
-| :--- | :--- | :--- |
-| **Core Build** | C++ compilation and library generation | ![Build](https://img.shields.io/github/actions/workflow/status/lorenzetti-ufrj-br/lorenzetti/reco_sequence.yml?job=build&label=build&branch=master) |
-| **Reco Sequence** | Full $Z \to e^+e^-$ end-to-end chain (`EVT` $\to$ `NTUPLE`) | ![Reco](https://img.shields.io/github/actions/workflow/status/lorenzetti-ufrj-br/lorenzetti/reco_sequence.yml?job=ntuple&label=reco&branch=master) |
-| **Anomaly Sequence** | Anomaly injection and defect simulation | ![Anomaly](https://img.shields.io/github/actions/workflow/status/lorenzetti-ufrj-br/lorenzetti/anomaly_sequence.yml?job=digitalization&label=anomaly&branch=master) |
-| **Documentation** | Sphinx and Doxygen builds | ![Pages](https://img.shields.io/github/actions/workflow/status/lorenzetti-ufrj-br/lorenzetti/pages.yml?label=pages&branch=master) |
-
----
-
-## 7. Citations
+## Citation
 
 If you use Lorenzetti in your research, please cite:
 
@@ -152,6 +83,6 @@ If you use Lorenzetti in your research, please cite:
 
 ---
 
-## 8. License
+## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.

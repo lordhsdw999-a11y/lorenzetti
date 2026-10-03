@@ -97,6 +97,6 @@ builder.merge(acc)
 ---
 
 ## 4. Dependencies
-- `core/GaugiKernel`: Algorithm interfaces, StoreGate `EventContext`, Data Handles, logging.
+- `kernel/GaugiKernel`: Algorithm interfaces, StoreGate `EventContext`, Data Handles, logging.
 - `events/CaloHit`: `xAOD::CaloHit`, `xAOD::CaloHitCollection`, `xAOD::CaloHitContainer`.
-- `simulation/G4Kernel`: Geant4 simulation context and `ComponentAccumulator`.
+- `kernel/G4Kernel`: Geant4 simulation context and `ComponentAccumulator`.

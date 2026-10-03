@@ -4,8 +4,9 @@ import shutil
 
 # mapping based on grepped output
 mapping = {
-    'core/G4Kernel/python' : 'G4Kernel',
-    'core/GaugiKernel/python' : 'GaugiKernel',
+    'kernel/G4Kernel/python' : 'G4Kernel',
+    'kernel/GaugiKernel/python' : 'GaugiKernel',
+    'kernel/GenKernel/python' : 'GenKernel',
     'events/CaloCell/python' : 'CaloCell',
     'events/CaloCluster/python' : 'CaloCluster',
     'events/CaloHit/python' : 'CaloHit',
@@ -13,9 +14,7 @@ mapping = {
     'events/Egamma/python' : 'Egamma',
     'events/EventInfo/python' : 'EventInfo',
     'events/SpacePoint/python' : 'SpacePoint',
-    'generator/evtgen/python' : 'evtgen',
     'generator/filters/python' : 'filters',
-    'generator/genkernel/python' : 'GenKernel',
     'geometry/python' : 'geometry',
     'reconstruction/calorimeter/CaloCellBuilder/python' : 'CaloCellBuilder',
     'reconstruction/calorimeter/CaloClusterBuilder/python' : 'CaloClusterBuilder',

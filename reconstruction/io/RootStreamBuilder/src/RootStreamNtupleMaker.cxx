@@ -30,7 +30,7 @@ using namespace Gaugi;
  * @class RootStreamNtupleMaker
  * @brief Dumps flat Ntuples for analysis (ML training, performance studies).
  *
- * Unlike the AOD/ESD makers which serialize EDM objects, this algorithm flatterns
+ * Unlike the EDM stream makers which serialize EDM objects, this algorithm flattens
  * the data into simple floating-point branches (e.g. `cl_et`, `cl_eta`, `cl_rings`, etc.).
  * This is the standard format used for training neural networks (e.g. Ringer) or
  * plotting variables in ROOT.
@@ -46,11 +46,9 @@ RootStreamNtupleMaker::RootStreamNtupleMaker(std::string name) : IMsgService(nam
   declareProperty("InputTruthKey", m_truthKey = "Particles");
   declareProperty("InputSeedsKey", m_seedsKey = "Seeds");
   declareProperty("InputClusterKey", m_clusterKey = "Clusters");
-  // declareProperty("InputRingerKey", m_ringerKey = "Rings");
   declareProperty("InputRingerKeys", m_ringerKeys = {"Rings"});
   declareProperty("InputRingerL0Key", m_ringerL0Key = "RingsL0");
   declareProperty("InputTruthClusterKey", m_truthClusterKey = "TruthClusters");
-  // declareProperty("InputTruthRingerKey", m_truthRingerKey = "TruthRings");
   declareProperty("InputTruthRingerKeys", m_truthRingerKeys = {"TruthRings"});
   declareProperty("InputTruthElectronKey", m_truthElectronKey = "TruthElectrons");
   declareProperty("InputElectronKey", m_electronKey = "Electrons");
@@ -69,7 +67,6 @@ RootStreamNtupleMaker::~RootStreamNtupleMaker()
 StatusCode RootStreamNtupleMaker::initialize()
 {
   CHECK_INIT();
-  // setMsgLevel( (MSG::Level)m_outputLevel );
   return StatusCode::SUCCESS;
 }
 
@@ -133,7 +130,6 @@ StatusCode RootStreamNtupleMaker::bookHistograms(EventContext &ctx) const
   float cl_fracMax = 0;
   float cl_lateralMom = 0;
   float cl_longitudinalMom = 0;
-  std::vector<float> *cl_rings = nullptr;
   std::vector<float> *cl_ringsL0 = nullptr;
   float truth_cl_eta = 0;
   float truth_cl_phi = 0;
@@ -171,7 +167,6 @@ StatusCode RootStreamNtupleMaker::bookHistograms(EventContext &ctx) const
   float truth_cl_fracMax = 0;
   float truth_cl_lateralMom = 0;
   float truth_cl_longitudinalMom = 0;
-  std::vector<float> *truth_cl_rings = nullptr;
   float truth_el_eta = -1;
   float truth_el_et = -1;
   float truth_el_phi = -1;
@@ -231,7 +226,6 @@ StatusCode RootStreamNtupleMaker::bookHistograms(EventContext &ctx) const
   tree->Branch("cl_f2", &cl_f2);
   tree->Branch("cl_f3", &cl_f3);
   tree->Branch("cl_weta2", &cl_weta2);
-  // tree->Branch("cl_rings", &cl_rings);
   for (size_t i = 0; i < m_ringerKeys.size(); ++i)
     tree->Branch(("cl_rings_" + m_ringerKeys[i]).c_str(), &ring_holders[i]);
   tree->Branch("cl_ringsL0", &cl_ringsL0);
@@ -279,7 +273,6 @@ StatusCode RootStreamNtupleMaker::bookHistograms(EventContext &ctx) const
   tree->Branch("truth_cl_f2", &truth_cl_f2);
   tree->Branch("truth_cl_f3", &truth_cl_f3);
   tree->Branch("truth_cl_weta2", &truth_cl_weta2);
-  // tree->Branch("truth_cl_rings", &truth_cl_rings);
   for (size_t i = 0; i < m_truthRingerKeys.size(); ++i)
     tree->Branch(("truth_cl_rings_" + m_truthRingerKeys[i]).c_str(), &truth_ring_holders[i]);
   tree->Branch("truth_cl_secondR", &truth_cl_secondR);
@@ -323,12 +316,12 @@ StatusCode RootStreamNtupleMaker::execute(EventContext & /*ctx*/, const G4Step *
 
 //!=====================================================================
 
-StatusCode RootStreamNtupleMaker::execute(EventContext &ctx, int evt) const
+StatusCode RootStreamNtupleMaker::execute(EventContext & /*ctx*/, int /*evt*/) const
 {
   return StatusCode::SUCCESS;
 }
 
-//!===================================    ==================================
+//!=====================================================================
 
 StatusCode RootStreamNtupleMaker::post_execute(EventContext & /*ctx*/) const
 {
@@ -354,11 +347,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     MSG_FATAL("It's not possible to read the xAOD::EventInfoContainer from this Context using this key " << m_eventKey);
   }
 
-  // SG::ReadHandle<xAOD::CaloRingsContainer> ringer_container(m_ringerKey, ctx);
-  // if (!ringer_container.isValid())
-  // {
-  //   MSG_FATAL("It's not possible to read the xAOD::CaloRingsContainer from this Context using this key " << m_ringerKey);
-  // }
   std::vector<SG::ReadHandle<xAOD::CaloRingsContainer>> ringer_containers;
   for (const auto &key : m_ringerKeys)
     ringer_containers.emplace_back(key, ctx);
@@ -390,7 +378,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
 
   SG::ReadHandle<xAOD::CaloRingsContainer> ringerL0_container(m_ringerL0Key, ctx);
   SG::ReadHandle<xAOD::CaloClusterContainer> truth_cluster_container(m_truthClusterKey, ctx);
-  // SG::ReadHandle<xAOD::CaloRingsContainer> truth_ringer_container(m_truthRingerKey, ctx);
   SG::ReadHandle<xAOD::ElectronContainer> truth_electron_container(m_truthElectronKey, ctx);
 
   auto store = ctx.getStoreGateSvc();
@@ -445,7 +432,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
   bool el_medium = false;
   bool el_loose = false;
   bool el_vloose = false;
-  // std::vector<float> *cl_rings = nullptr;
   float seed_eta = 0;
   float seed_phi = 0;
   std::vector<float> *mc_pdgid = nullptr;
@@ -491,7 +477,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
   float truth_cl_fracMax = 0;
   float truth_cl_lateralMom = 0;
   float truth_cl_longitudinalMom = 0;
-  // std::vector<float> *truth_cl_rings = nullptr;
   float truth_el_eta = -1;
   float truth_el_et = -1;
   float truth_el_phi = -1;
@@ -539,7 +524,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
   InitBranch(tree, "cl_fracMax", &cl_fracMax);
   InitBranch(tree, "cl_lateralMom", &cl_lateralMom);
   InitBranch(tree, "cl_longitudinalMom", &cl_longitudinalMom);
-  // InitBranch(tree, "cl_rings", &cl_rings);
   for (size_t i = 0; i < m_ringerKeys.size(); ++i)
     InitBranch(tree, ("cl_rings_" + m_ringerKeys[i]).c_str(), &cl_ring_vecs[i]);
   InitBranch(tree, "el_eta", &el_eta);
@@ -588,7 +572,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
   InitBranch(tree, "truth_cl_f2", &truth_cl_f2);
   InitBranch(tree, "truth_cl_f3", &truth_cl_f3);
   InitBranch(tree, "truth_cl_weta2", &truth_cl_weta2);
-  // InitBranch(tree, "truth_cl_rings", &truth_cl_rings);
   for (size_t i = 0; i < m_truthRingerKeys.size(); ++i)
     InitBranch(tree, ("truth_cl_rings_" + m_truthRingerKeys[i]).c_str(), &truth_cl_ring_vecs[i]);
   InitBranch(tree, "truth_cl_secondR", &truth_cl_secondR);
@@ -609,7 +592,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
 
   for (auto el : *electron_container)
   {
-    // cl_rings->clear();
     mc_pdgid->clear();
     mc_eta->clear();
     mc_phi->clear();
@@ -617,7 +599,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     mc_et->clear();
 
     cl_ringsL0->clear();
-    // truth_cl_rings->clear();
     truth_cl_eta = 0;
     truth_cl_phi = 0;
     truth_cl_e = 0;
@@ -664,23 +645,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     truth_el_vloose = false;
 
     auto clus = el->caloCluster();
-
-    // const xAOD::CaloRings *cl_ringer = nullptr;
-    // for (auto ring : **ringer_container.ptr())
-    // {
-    //   if (ring->caloCluster() == clus)
-    //   {
-    //     cl_ringer = ring;
-    //     break;
-    //   }
-    // }
-
-    // if (!cl_ringer)
-    // {
-    //   MSG_WARNING("No rings found for cluster");
-    //   continue;
-    // }
-    // inside the electron loop, replace ring fill with:
 
     const xAOD::CaloRings *cl_ringerL0 = nullptr;
     if (ringerL0_container.isValid())
@@ -738,7 +702,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
         }
       }
     }
-    const xAOD::CaloRings *truth_ringer = nullptr;
 
     const xAOD::Electron *truth_el = nullptr;
     if (truth_electron_container.isValid())
@@ -793,8 +756,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
     cl_fracMax = clus->fracMax();
     cl_lateralMom = clus->lateralMom();
     cl_longitudinalMom = clus->longitudinalMom();
-    // for (auto ring : cl_ringer->rings())
-    //     cl_rings->push_back(ring);
 
     if (cl_ringerL0)
     {
@@ -841,12 +802,6 @@ StatusCode RootStreamNtupleMaker::fillHistograms(EventContext &ctx) const
       truth_cl_lateralMom = truth_clus->lateralMom();
       truth_cl_longitudinalMom = truth_clus->longitudinalMom();
     }
-
-    // if (truth_ringer)
-    // {
-    //     for (auto ring : truth_ringer->rings())
-    //         truth_cl_rings->push_back(ring);
-    // }
 
     if (truth_el)
     {
@@ -907,5 +862,3 @@ void RootStreamNtupleMaker::InitBranch(TTree *fChain, std::string branch_name, T
   fChain->SetBranchStatus(bname.c_str(), 1.);
   fChain->SetBranchAddress(bname.c_str(), param);
 }
-
-//!=====================================================================

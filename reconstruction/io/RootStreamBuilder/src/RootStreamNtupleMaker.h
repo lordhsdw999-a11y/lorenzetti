@@ -8,38 +8,33 @@
 #include "CaloCluster/CaloCluster.h"
 #include "CaloRings/CaloRings.h"
 #include "Egamma/Electron.h"
+#include "TTree.h"
+#include <string>
+#include <vector>
 
 /**
  * @class RootStreamNtupleMaker
  * @brief Algorithm to dump analysis-level variables into a flat Ntuple (TTree).
  *
  * Reads reconstructed objects (Clusters, Rings, Electrons) and truth info
- * and writes them into a simple TTree structure suitable for physics analysis
- * (e.g., in Python/Pandas or ROOT).
+ * and writes them into a simple, flat TTree structure suitable for physics analysis
+ * and machine learning.
  */
 class RootStreamNtupleMaker : public Gaugi::Algorithm
 {
-
 public:
   /** Constructor **/
-  RootStreamNtupleMaker(std::string);
+  RootStreamNtupleMaker(std::string name);
 
   virtual ~RootStreamNtupleMaker();
 
   virtual StatusCode initialize() override;
-
   virtual StatusCode bookHistograms(SG::EventContext &ctx) const override;
-
   virtual StatusCode pre_execute(SG::EventContext &ctx) const override;
-
   virtual StatusCode execute(SG::EventContext &ctx, const G4Step *step) const override;
-
   virtual StatusCode execute(SG::EventContext &ctx, int evt) const override;
-
   virtual StatusCode post_execute(SG::EventContext &ctx) const override;
-
   virtual StatusCode fillHistograms(SG::EventContext &ctx) const override;
-
   virtual StatusCode finalize() override;
 
 private:
@@ -50,11 +45,9 @@ private:
   std::string m_eventKey;
   std::string m_truthKey;
   std::string m_clusterKey;
-  std::string m_ringerKey;
   std::string m_electronKey;
   std::string m_ringerL0Key;
   std::string m_truthClusterKey;
-  std::string m_truthRingerKey;
   std::string m_truthElectronKey;
   std::string m_outputNtupleName;
 

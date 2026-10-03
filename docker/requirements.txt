@@ -12,3 +12,8 @@ prettytable
 expand_folders
 rich_argparse
 loguru
+pydantic
+pyarrow
+fastparquet
+typer
+typing_extensions

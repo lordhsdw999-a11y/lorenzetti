@@ -47,7 +47,7 @@ include(${ROOT_USE_FILE})
 
 
 #----------------------------------------------------------------------------
-include(core/GaugiKernel/cmake/InstallGaugiFunctions.cmake)
+include(kernel/GaugiKernel/cmake/InstallGaugiFunctions.cmake)
 gaugi_initialize()
 
 
@@ -66,9 +66,10 @@ include_directories( ${PYTHIA8_INCLUDE_DIRS} )
 include_directories( ${HEPMC_INCLUDE_DIRS} )
 
 
-# core
-add_subdirectory( core/GaugiKernel )
-add_subdirectory( core/G4Kernel )
+# kernel
+add_subdirectory( kernel/GaugiKernel )
+add_subdirectory( kernel/G4Kernel )
+add_subdirectory( kernel/GenKernel )
 
 
 
@@ -102,9 +103,7 @@ add_subdirectory( reconstruction/reco )
 
 
 # generator package
-add_subdirectory( generator/genkernel )
 add_subdirectory( generator/filters )
-add_subdirectory( generator/evtgen )
 
 
 
@@ -131,7 +130,6 @@ add_library(lorenzetti SHARED
   $<TARGET_OBJECTS:EgammaBuilder>
   $<TARGET_OBJECTS:GenKernel>
   $<TARGET_OBJECTS:filters>
-  $<TARGET_OBJECTS:evtgen>
 )
 
 message( STATUS ${FASTJET_LIBRARIES} )

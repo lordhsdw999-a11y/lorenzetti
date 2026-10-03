@@ -4,8 +4,8 @@ file(GLOB_RECURSE HEADERS src/D*.h )
 
 
 include_directories(${CMAKE_SOURCE_DIR} ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/GaugiKernel)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../core/G4Kernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../kernel/GaugiKernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../kernel/G4Kernel)
 
 ROOT_GENERATE_DICTIONARY(geometryDict ${HEADERS} LINKDEF ${CMAKE_CURRENT_SOURCE_DIR}/src/LinkDef.h  MODULE geometry)   
 add_library(geometry  OBJECT ${SOURCES} geometryDict.cxx)

@@ -1,0 +1,184 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%arguments
+    ROOT_VERSION=v6-34-00
+    GEANT4_VERSION=v11.2.2
+    FASTJET_VERSION=3.4.0
+    HEPMC_VERSION=3.3.0
+    PYTHIA8_VERSION=8313
+
+%labels
+    Author "Lorenzetti Collaboration"
+    Version "latest"
+    ROOT_VERSION {{ ROOT_VERSION }}
+    GEANT4_VERSION {{ GEANT4_VERSION }}
+    FASTJET_VERSION {{ FASTJET_VERSION }}
+    HEPMC_VERSION {{ HEPMC_VERSION }}
+    PYTHIA8_VERSION {{ PYTHIA8_VERSION }}
+
+%files
+    requirements.txt /requirements.txt
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=en_US.UTF-8
+    export LANGUAGE=en_US:en
+    export TERM=screen
+    export TZ=America/New_York
+    export DEBIAN_FRONTEND=noninteractive
+
+    export ROOTSYS=/opt/root/build
+    export PATH=/opt/lorenzetti-python/bin:/opt/geant4/build:/opt/root/build/bin:/opt/DD4hep/build:$PATH
+    export PYTHONPATH=/opt/root/build/lib:/opt/pythia/lib:$PYTHONPATH
+
+    export G4NEUTRONHPDATA=/opt/geant4/build/data/G4NDL4.7.1
+    export G4LEDATA=/opt/geant4/build/data/G4EMLOW8.5
+    export G4LEVELGAMMADATA=/opt/geant4/build/data/PhotonEvaporation5.7
+    export G4RADIOACTIVEDATA=/opt/geant4/build/data/RadioactiveDecay5.6
+    export G4PARTICLEXSDATA=/opt/geant4/build/data/G4PARTICLEXS4.0
+    export G4PIIDATA=/opt/geant4/build/data/G4PII1.3
+    export G4REALSURFACEDATA=/opt/geant4/build/data/RealSurface2.2
+    export G4SAIDXSDATA=/opt/geant4/build/data/G4SAIDDATA2.0
+    export G4ABLADATA=/opt/geant4/build/data/G4ABLA3.3
+    export G4INCLDATA=/opt/geant4/build/data/G4INCL1.2
+    export G4ENSDFSTATEDATA=/opt/geant4/build/data/G4ENSDFSTATE2.3
+
+    export PYTHIA8_INCLUDE=/opt/pythia/include
+    export PYTHIA8_LIBRARIES=/opt/pythia/lib
+    export FASTJET_INCLUDE=/opt/fastjet/include
+    export FASTJET_LIBRARIES=/usr/local/lib
+    export HEPMC_INCLUDE=/opt/optmc/include/
+    export HEPMC_LIBRARIES=/usr/local/lib
+    export LCIO_DIR=/opt/LCIO/build
+
+    export LD_LIBRARY_PATH=/opt/geant4/build/BuildProducts/lib:$ROOTSYS/lib:/usr/local/lib:$LD_LIBRARY_PATH
+
+%post
+    export LC_ALL=C.UTF-8
+    export LANG=en_US.UTF-8
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=America/New_York
+
+    apt-get update -y --fix-missing
+    apt-get install -y wget \
+                       build-essential \
+                       dpkg-dev \
+                       cmake \
+                       curl \
+                       g++ \
+                       gcc \
+                       binutils \
+                       libxpm-dev \
+                       python3 \
+                       python-dev-is-python3 \
+                       python3-pip \
+                       python3-venv \
+                       librange-v3-dev \
+                       libssl-dev \
+                       gfortran \
+                       libpcre3-dev \
+                       libglu1-mesa-dev \
+                       libglew-dev \
+                       libftgl-dev \
+                       libmysqlclient-dev \
+                       libfftw3-dev \
+                       libcfitsio-dev \
+                       libgraphviz-dev \
+                       libxml2-dev \
+                       libkrb5-dev \
+                       libgsl-dev \
+                       rsync \
+                       libxi-dev \
+                       protobuf-compiler \
+                       libprotobuf-dev \
+                       libxerces-c-dev \
+                       libboost-python-dev \
+                       libavahi-compat-libdnssd-dev \
+                       libldap2-dev \
+                       libboost-all-dev \
+                       libx11-dev \
+                       libxft-dev \
+                       libxext-dev \
+                       libxmu-dev \
+                       mesa-common-dev \
+                       qtcreator \
+                       qtbase5-dev \
+                       qt5-qmake \
+                       git
+
+    mkdir -p /opt && cd /opt
+
+    # Build ROOT
+    git clone --depth 1 --branch {{ ROOT_VERSION }} https://github.com/root-project/root.git
+    cd /opt/root && mkdir build && cd build
+    cmake -Dpython_version=3 -Dxrootd=OFF -Dbuiltin_xrootd=OFF ..
+    make -j$(nproc)
+
+    export ROOTSYS=/opt/root/build
+    export PATH=$ROOTSYS/bin:$PATH
+    export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH
+    export PYTHONPATH=/opt/root/build/lib:$PYTHONPATH
+
+    # Build Geant4
+    cd /opt
+    git clone --depth 1 --branch {{ GEANT4_VERSION }} https://github.com/Geant4/geant4.git
+    cd /opt/geant4 && mkdir build && cd build
+    cmake -DGEANT4_INSTALL_DATA=ON \
+          -DGEANT4_BUILD_MULTITHREADED=ON \
+          -DGEANT4_USE_SYSTEM_ZLIB=ON \
+          -DGEANT4_USE_OPENGL_X11=ON \
+          -DGEANT4_BUILD_TLS_MODEL=global-dynamic \
+          -DGEANT4_USE_QT=ON \
+          -DGEANT4_USE_GDML=ON \
+          -DGEANT4_INSTALL_DATA_TIMEOUT=999999 \
+          -DGEANT4_BUILD_MUONIC_ATOMS_IN_USE=ON ..
+    make -j$(nproc)
+
+    # Build Pythia8
+    cd /opt
+    wget https://pythia.org/releases/pythia83/pythia{{ PYTHIA8_VERSION }}.tgz
+    tar -vxf pythia{{ PYTHIA8_VERSION }}.tgz && rm -rf pythia{{ PYTHIA8_VERSION }}.tgz && mv pythia{{ PYTHIA8_VERSION }} pythia
+    cd /opt/pythia
+    ./configure --with-python-config=python3-config
+    make -j$(nproc)
+
+    # Build FastJet
+    cd /opt
+    wget http://fastjet.fr/repo/fastjet-{{ FASTJET_VERSION }}.tar.gz
+    tar zxvf fastjet-{{ FASTJET_VERSION }}.tar.gz && rm -rf fastjet-{{ FASTJET_VERSION }}.tar.gz && mv fastjet-{{ FASTJET_VERSION }} fastjet
+    cd /opt/fastjet
+    ./configure
+    make -j$(nproc) && make install
+
+    # Build HepMC3
+    cd /opt
+    wget http://hepmc.web.cern.ch/hepmc/releases/HepMC3-{{ HEPMC_VERSION }}.tar.gz
+    tar -xzf HepMC3-{{ HEPMC_VERSION }}.tar.gz && rm -rf HepMC3-{{ HEPMC_VERSION }}.tar.gz && mv HepMC3-{{ HEPMC_VERSION }} hepmc
+    cd /opt/hepmc && mkdir build && cd build
+    cmake -DHEPMC3_ENABLE_ROOTIO=ON -DHEPMC3_INSTALL_INTERFACES=ON -DHEPMC3_ENABLE_PROTOBUFIO=ON ..
+    make -j$(nproc) && make install
+
+    # Python virtual environment
+    python3 -m venv /opt/lorenzetti-python
+    /opt/lorenzetti-python/bin/pip install --upgrade pip
+    /opt/lorenzetti-python/bin/pip install -r /requirements.txt
+
+    # Build LCIO
+    cd /opt
+    git clone --depth 1 --branch v02-15-01 https://github.com/iLCSoft/LCIO.git
+    cd /opt/LCIO && mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=../install && make -j$(nproc) install
+
+    # Build DD4hep
+    cd /opt
+    git clone --depth 1 --branch v01-33 https://github.com/AIDASoft/DD4hep.git
+    cd /opt/DD4hep && mkdir build && cd build
+    cmake -DDD4HEP_USE_GEANT4=ON -DBoost_NO_BOOST_CMAKE=ON -DBUILD_TESTING=ON -DDD4HEP_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release ..
+    make -j$(nproc) && make install
+
+    # Clean package manager cache
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+
+%runscript
+    exec /bin/bash "$@"

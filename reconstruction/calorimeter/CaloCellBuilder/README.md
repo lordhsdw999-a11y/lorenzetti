@@ -150,6 +150,6 @@ def configure_digitization(detector_construction: Any) -> ComponentAccumulator:
 ---
 
 ## 5. Dependencies
-* `core/GaugiKernel`: Algorithm and AlgTool interfaces, StoreGate `EventContext`, Data Handles, `ElementLink`.
+* `kernel/GaugiKernel`: Algorithm and AlgTool interfaces, StoreGate `EventContext`, Data Handles, `ElementLink`.
 * `events/CaloCell`: `xAOD::CaloCell`, `xAOD::CaloDetDescriptor`, `xAOD::CaloCellContainer`, `xAOD::CaloDetDescriptorContainer`.
 * `events/CaloHit`: `xAOD::CaloHitContainer`.

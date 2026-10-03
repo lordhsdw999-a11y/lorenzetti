@@ -1,25 +1,32 @@
-__all__ = ["RootStreamNtupleMaker"]
+__all__ = ["RootStreamNtupleMaker", "RootStreamNtupleMakerCfg"]
 
 import ROOT
+from typing import List, Optional
 from GaugiKernel import Configurable
-from GaugiKernel.macros import *
 
 
 def RootStreamNtupleMakerCfg(
-    name,
-    InputEventKey: str,
-    InputTruthKey: str,
-    InputSeedsKey: str,
-    InputClusterKey: str,
-    InputRingerKeys: str,
-    InputRingerL0Key: str,
-    InputTruthClusterKey: str,
-    InputTruthRingerKeys: str,
-    InputTruthElectronKey: str,
-    InputElectronKey: str,
-    OutputLevel: int = 0,
+    name: str = "RootStreamNtupleMaker",
+    InputEventKey: str = "EventInfo",
+    InputTruthKey: str = "Particles",
+    InputSeedsKey: str = "Seeds",
+    InputClusterKey: str = "CaloClusters",
+    InputRingerKeys: Optional[List[str]] = None,
+    InputRingerL0Key: str = "RingsL0",
+    InputTruthClusterKey: str = "TruthClusters",
+    InputTruthRingerKeys: Optional[List[str]] = None,
+    InputTruthElectronKey: str = "TruthElectrons",
+    InputElectronKey: str = "Electrons",
     OutputNtupleName: str = "events",
+    OutputLevel: int = 0,
 ) -> Configurable:
+    """
+    Creates a RootStreamNtupleMaker algorithm for dumping flat analysis ntuples.
+    """
+    if InputRingerKeys is None:
+        InputRingerKeys = ["Rings"]
+    if InputTruthRingerKeys is None:
+        InputTruthRingerKeys = ["TruthRings"]
 
     return Configurable(
         ROOT.RootStreamNtupleMaker,
@@ -37,5 +44,6 @@ def RootStreamNtupleMakerCfg(
         OutputNtupleName=OutputNtupleName,
         OutputLevel=OutputLevel,
     )
+
 
 RootStreamNtupleMaker = RootStreamNtupleMakerCfg

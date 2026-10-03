@@ -2,7 +2,7 @@ import os
 import glob
 
 # Top-level directories to scan
-SOURCE_DIRS = ['core', 'events', 'generator', 'geometry', 'reconstruction']
+SOURCE_DIRS = ['kernel', 'events', 'generator', 'geometry', 'reconstruction']
 OUTPUT_DIR = 'doc/source/cxx'
 
 def generate_rst():

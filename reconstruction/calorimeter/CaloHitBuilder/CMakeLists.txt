@@ -8,8 +8,8 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../events/CaloCell)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../events/CaloHit)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../events/EventInfo)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../events/TruthParticle)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../core/GaugiKernel)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../core/G4Kernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../kernel/GaugiKernel)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../kernel/G4Kernel)
 
 
 ROOT_GENERATE_DICTIONARY(CaloHitBuilderDict ${HEADERS} LINKDEF ${CMAKE_CURRENT_SOURCE_DIR}/src/LinkDef.h  MODULE CaloHitBuilder)
