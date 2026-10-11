@@ -40,9 +40,9 @@ private:
   std::vector<std::string> m_itemList;
   int m_outputLevel;
 
-  TFile *m_file;
-  TTree *m_tree;
-  bool m_ownsFile;
+  mutable TFile *m_file;
+  mutable TTree *m_tree;
+  mutable bool m_ownsFile;
   std::vector<std::unique_ptr<Gaugi::IBranchHandler>> m_handlers;
 };
 

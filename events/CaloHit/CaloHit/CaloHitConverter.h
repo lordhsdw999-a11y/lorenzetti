@@ -6,7 +6,7 @@
 
 namespace xAOD{
 
-    typedef std::map<const CaloHit *, int> descriptor_links_t;
+    typedef std::map<const CaloHit *, int> calohit_links_t;
 
 
     struct CaloHit_t{

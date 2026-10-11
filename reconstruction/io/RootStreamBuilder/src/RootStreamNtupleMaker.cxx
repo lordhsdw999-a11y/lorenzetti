@@ -9,6 +9,7 @@
  */
 #include "CaloCell/CaloCellContainer.h"
 #include "EventInfo/EventInfoContainer.h"
+#include "EventInfo/SeedContainer.h"
 #include "TruthParticle/TruthParticleContainer.h"
 #include "CaloCluster/CaloClusterContainer.h"
 #include "CaloRings/CaloRingsContainer.h"
@@ -16,6 +17,7 @@
 #include "CaloCell/CaloCellConverter.h"
 #include "CaloCell/CaloDetDescriptorConverter.h"
 #include "EventInfo/EventInfoConverter.h"
+#include "EventInfo/SeedConverter.h"
 #include "TruthParticle/TruthParticleConverter.h"
 #include "CaloCluster/CaloClusterConverter.h"
 #include "CaloRings/CaloRingsConverter.h"

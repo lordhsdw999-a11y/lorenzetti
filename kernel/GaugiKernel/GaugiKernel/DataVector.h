@@ -20,6 +20,8 @@ namespace SG {
   template<class T>
   class DataVector : public DataHandle {  
   public:
+    using base_type = T;
+    using value_type = const T*;
     
     /*! Constructor */
     DataVector() = default;
@@ -41,6 +43,12 @@ namespace SG {
 
     /*! Direct indexing operator */
     const T* operator[](size_t index) const;
+
+    /*! Access first element */
+    const T* front() const { return m_data.empty() ? nullptr : m_data.front(); }
+
+    /*! Access last element */
+    const T* back() const { return m_data.empty() ? nullptr : m_data.back(); }
 
     /*! Iterator access */
     typename std::vector<const T*>::const_iterator begin() const { return m_data.begin(); }

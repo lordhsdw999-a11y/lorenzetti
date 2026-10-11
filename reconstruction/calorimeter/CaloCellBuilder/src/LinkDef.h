@@ -7,7 +7,7 @@
 
 #include "src/PileupMerge.h"
 #include "src/ConstrainedOptimalFilter.h"
-#include "src/AnomalyGenerator.h"
+#include "src/PulsePerturber.h"
 
 #ifdef __CINT__
 
@@ -22,5 +22,5 @@
 //#pragma link C++ class CrossTalkMaker+;
 #pragma link C++ class ConstrainedOptimalFilter+;
 #pragma link C++ class PileupMerge+;
-#pragma link C++ class AnomalyGenerator+;
+#pragma link C++ class PulsePerturber+;
 #endif
