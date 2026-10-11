@@ -184,3 +184,48 @@ ntuple_maker = RootStreamNtupleMakerCfg(
     OutputNtupleName="events"
 )
 ```
+
+### 4.5. ESD Tier & Online Noise Suppression Reading (`RootStreamESDReader` / ATLAS Run 4)
+
+In offline reconstruction (`reco_trf.py`), `RootStreamESDReader` provides **on-the-fly cell noise filtering** ($E > N\sigma$, default $2\sigma$) via `CaloCellBranchHandler`.
+
+This decouples the storage policy from reconstruction: a **single complete ESD** produced by `digit_trf.py` can be used to generate both Run 4 baseline AODs ($2\sigma$ cut) and control/calibration AODs (no cut or alternate thresholds) without repeating the CPU-intensive digitization step.
+
+```mermaid
+graph LR
+    ESD["ESD File on Disk<br/>(Complete or Pre-filtered)"] --> Reader["RootStreamESDReader<br/>(CaloCellBranchHandler)"]
+    Reader --> Check{"FilterBySigma Enabled?"}
+    Check -->|False| SG_All["Record All Cells & TruthCells to StoreGate"]
+    Check -->|True| Filter["Evaluate E_reco > N * &sigma;_noise<br/>using CaloDetDescriptors"]
+    Filter -->|E > 2&sigma;| SG_Filt["Record Filtered 'Cells' to StoreGate"]
+    Filter -->|E > 2&sigma;| SG_Truth["Record Matching 'TruthCells' to StoreGate"]
+    Filter -->|E &le; 2&sigma;| Skip["Suppress Sub-threshold Cells"]
+```
+
+#### Key Advantages:
+* **Workflow Efficiency**: Avoids re-running `digit_trf.py` to create separate ESD files for different cell energy thresholds.
+* **Synchronized Truth**: `TruthCells` automatically matches the filtered real `Cells` container 1-to-1 in StoreGate.
+* **Zero Algorithmic Changes Downstream**: `CaloClusterMaker`, `CaloRingsMaker`, and `ElectronMaker` transparently process the filtered cells from StoreGate.
+
+#### Configuration Options:
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `FilterBySigma` | `bool` | `False` | Enables online cell noise suppression during read. |
+| `SigmaThreshold` | `float` | `2.0` | Threshold multiplier for noise cut ($E > N\sigma$). |
+| `DescriptorsKey` | `str` | `"CaloDetDescriptors"` | StoreGate key of master descriptor container. |
+
+#### Usage Example (`reco_trf.py`):
+```python
+from RootStreamBuilder import RootStreamESDReader, recordable
+
+ESD = RootStreamESDReader(
+    "ESDReader",
+    InputFile=input_file,
+    OutputCellsKey=recordable("Cells"),
+    OutputCellsTruthKey=recordable("TruthCells"),
+    FilterBySigma=filter_by_sigma,     # Flag from CLI (--filter-by-sigma)
+    SigmaThreshold=sigma_threshold,   # e.g., 2.0
+    OutputLevel=outputLevel,
+)
+```
+

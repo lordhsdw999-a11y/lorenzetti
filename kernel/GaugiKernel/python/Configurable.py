@@ -100,6 +100,10 @@ class Configurable(Logger):
     def getProperty(self, key):
         return getattr(self, key)
 
+    def merge(self, acc):
+        """Merges this configurable into a ComponentAccumulator."""
+        acc += self
+
     def __setattr__(self, name, value):
         if name in ('_properties', '_c_ptr'):
             super().__setattr__(name, value)

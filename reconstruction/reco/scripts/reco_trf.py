@@ -18,6 +18,8 @@ def main(
     number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads allocated per worker")] = 1,
     nov: Annotated[int, typer.Option("--nov", "--number-of-events", help="The total number of events to run.")] = -1,
     output_level: Annotated[str, typer.Option("-l", "--output-level", help="Logging verbosity.")] = "INFO",
+    filter_by_sigma: Annotated[bool, typer.Option("--filter-by-sigma/--no-filter-by-sigma", help="Filter cells by noise sigma threshold.")] = False,
+    sigma_threshold: Annotated[float, typer.Option("--sigma-threshold", help="Noise sigma threshold for cell filtering (E > threshold * sigma).")] = 2.0,
     preexec: Annotated[str, typer.Option("-p", "--preexec", help="The preexec command to run before reconstruction.")] = "''",
 ):
     """
@@ -41,6 +43,8 @@ def main(
         OutputEventKey=recordable("Events"),
         OutputTruthKey=recordable("Particles"),
         OutputSeedsKey=recordable("Seeds"),
+        FilterBySigma=filter_by_sigma,
+        SigmaThreshold=sigma_threshold,
         OutputLevel=outputLevel,
     )
     ESD.merge(acc)

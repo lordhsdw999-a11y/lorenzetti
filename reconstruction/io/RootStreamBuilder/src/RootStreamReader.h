@@ -41,10 +41,14 @@ private:
   std::string m_inputFile;
   std::string m_ntupleName;
   int m_outputLevel;
+  bool m_filterBySigma;
+  float m_sigmaThreshold;
+  std::string m_descriptorsKey;
 
   TFile *m_file;
   TTree *m_tree;
   std::vector<std::unique_ptr<Gaugi::IBranchHandler>> m_handlers;
+  std::shared_ptr<std::unordered_set<uint32_t>> m_cellPassedIndices;
 };
 
 #endif

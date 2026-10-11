@@ -118,20 +118,27 @@ def RootStreamESDMakerCfg(
     InputSeedsKey: str = "Seeds",
     InputCellsKey: str = "Cells",
     InputTruthCellsKey: str = "TruthCells",
+    InputCellsTruthKey: Optional[str] = None,
+    InputDescriptorsKey: str = "CaloDetDescriptors",
     InputClusterKey: str = "CaloClusters",
     InputTruthClusterKey: str = "TruthClusters",
     TreeName: str = "CollectionTree",
     OutputLevel: int = 0,
+    **kwargs,
 ) -> Configurable:
     """
     Convenience preset configuring a RootStreamMaker for ESD tier output.
     """
+    if InputCellsTruthKey is not None:
+        InputTruthCellsKey = InputCellsTruthKey
+
     item_list: List[str] = [
         f"EventInfoContainer#{InputEventKey}",
         f"TruthParticleContainer#{InputTruthKey}",
         f"SeedContainer#{InputSeedsKey}",
         f"CaloCellContainer#{InputCellsKey}",
         f"CaloCellContainer#{InputTruthCellsKey}",
+        f"CaloDetDescriptorContainer#{InputDescriptorsKey}",
         f"CaloClusterContainer#{InputClusterKey}",
         f"CaloClusterContainer#{InputTruthClusterKey}",
     ]

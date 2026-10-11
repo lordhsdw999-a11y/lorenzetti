@@ -3,6 +3,7 @@
 
 #include "GenericBranchHandler.h"
 #include "CaloHitBranchHandler.h"
+#include "CaloCellBranchHandler.h"
 
 // EDM Includes
 #include "EventInfo/EventInfoContainer.h"
@@ -35,6 +36,7 @@
 #include <memory>
 #include <string>
 #include <algorithm>
+#include <unordered_set>
 
 namespace Gaugi {
 
@@ -51,7 +53,11 @@ namespace Gaugi {
         float etaWindow = 0.4f,
         float phiWindow = 0.4f,
         const std::string &truthKey = "Particles",
-        const std::vector<int> &cellHashes = {})
+        const std::vector<int> &cellHashes = {},
+        bool filterBySigma = false,
+        float sigmaThreshold = 2.0f,
+        const std::string &descriptorsKey = "CaloDetDescriptors",
+        std::shared_ptr<std::unordered_set<uint32_t>> sharedPassedIndices = nullptr)
     {
       std::string typeName = rawTypeName;
       // Strip namespace if present
@@ -84,9 +90,8 @@ namespace Gaugi {
                                                      xAOD::CaloDetDescriptorConverter>>("CaloDetDescriptorContainer", key);
       }
       else if (typeName == "CaloCellContainer" || typeName == "CaloCell") {
-        return std::make_unique<GenericBranchHandler<xAOD::CaloCellContainer,
-                                                     xAOD::CaloCell_t,
-                                                     xAOD::CaloCellConverter>>("CaloCellContainer", key);
+        return std::make_unique<CaloCellBranchHandler>(
+            key, filterBySigma, sigmaThreshold, descriptorsKey, sharedPassedIndices);
       }
       else if (typeName == "CaloClusterContainer" || typeName == "CaloCluster") {
         return std::make_unique<GenericBranchHandler<xAOD::CaloClusterContainer,

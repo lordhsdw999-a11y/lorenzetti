@@ -66,7 +66,7 @@ def main(
     ESD = RootStreamESDMaker(
         "RootStreamESDMaker",
         InputCellsKey=recordable("Cells"),
-        InputCellsTruthKey=recordable("TruthCells"),
+        InputTruthCellsKey=recordable("TruthCells"),
         InputEventKey=recordable("Events"),
         InputTruthKey=recordable("Particles"),
         InputSeedsKey=recordable("Seeds"),

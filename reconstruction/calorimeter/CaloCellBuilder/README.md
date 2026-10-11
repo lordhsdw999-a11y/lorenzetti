@@ -79,6 +79,8 @@ Global digitization flags are controlled via stringified enums:
 * `DoCrossTalk` (`bool`, default `False`): Enables cell-to-cell cross-talk simulation.
 * `DoCOF` (`bool`, default `False`): Enables Constrained Optimal Filtering for Tile calorimeter.
 * `DoDefects` (`bool`, default `False`): Enables anomaly injection via `PulsePerturber`.
+* `FilterBySigma` (`bool`, default `False`): Enables noise-sigma based cell filtering ($E > N\sigma$).
+* `SigmaThreshold` (`float`, default `2.0`): Multiplier threshold for noise cut ($N$).
 
 ### `CrossTalkFlags`
 * `MinEnergy` (`float`, default `1.0 * GeV`): Energy threshold to trigger cross-talk propagation.
@@ -109,6 +111,8 @@ class CaloCellBuilder(Logger):
         InputEventKey: str = "Events",
         FilterEmptyCells: bool = False,
         MinEnergy: float = 0.0,
+        FilterBySigma: Optional[bool] = None,
+        SigmaThreshold: Optional[float] = None,
         OutputLevel: int = LoggingLevel.toC("INFO"),
     ) -> None:
         ...
@@ -149,7 +153,55 @@ def configure_digitization(detector_construction: Any) -> ComponentAccumulator:
 
 ---
 
-## 5. Dependencies
+## 5. ATLAS Run 4 Noise Suppression ($E > 2\sigma$ Filtering)
+
+### 5.1 Context and Motivation
+In High-Luminosity LHC (HL-LHC / ATLAS Run 4), the extreme calorimeter readout bandwidth and high-pileup environment dictate stringent zero-suppression and noise filtering policies. To optimize storage and downstream reconstruction latency, calorimeter cells whose reconstructed energy does not exceed **$2\sigma$ of the electronic noise** are filtered out:
+
+$$E_{\text{reco}} > N \cdot \sigma_{\text{noise}} \quad (\text{with } N = 2.0)$$
+
+### 5.2 Merge-Level Filtering Mechanism
+Filtering is executed online within the `CaloCellMerge` algorithm during the creation of unified event collections:
+
+```mermaid
+graph TD
+    Desc["CaloDetDescriptor (Sampling Collection)"] --> Check{"FilterBySigma active?"}
+    Check -- "No" --> RetainAll["Keep cell in Containers"]
+    Check -- "Yes" --> Eval{"E_reco > N * &sigma;?"}
+    Eval -- "No (Noise/Sub-threshold)" --> Drop["Discard Cell, Truth Cell & Descriptor"]
+    Eval -- "Yes (Significant Signal)" --> Retain["Store in Containers"]
+
+    subgraph Synchronized Retention
+        Retain --> D["1. Push to CaloDetDescriptors"]
+        Retain --> C["2. Create xAOD::CaloCell (reco) in 'Cells'"]
+        Retain --> TC["3. Create matching xAOD::CaloCell (truth) in 'TruthCells'"]
+    end
+```
+
+### 5.3 Truth Cell Correspondence
+To preserve strict physical correspondence between digital readout and simulated ground truth:
+* `TruthCells` only retains the simulated energy deposits for cells that **survived the reconstructed $2\sigma$ cut**.
+* If a cell fails the $2\sigma$ cut, neither the reconstructed cell nor its truth counterpart is written to StoreGate or disk.
+* Master descriptor indices and `ElementLink<xAOD::CaloDetDescriptor>` remain strictly aligned 1-to-1 between reconstructed and truth cells.
+
+### 5.4 Command-Line Configuration (`digit_trf.py`)
+
+The filter is enabled by default in `digit_trf.py`:
+
+```bash
+# Default execution (2-sigma filtering enabled):
+digit_trf.py -i Zee.HIT.root -o Zee.ESD.root --nov 100
+
+# Custom threshold (e.g. 3-sigma):
+digit_trf.py -i Zee.HIT.root -o Zee.ESD.root --sigma-threshold 3.0
+
+# Disable noise filtering (legacy behavior):
+digit_trf.py -i Zee.HIT.root -o Zee.ESD.root --no-filter-by-sigma
+```
+
+---
+
+## 6. Dependencies
 * `kernel/GaugiKernel`: Algorithm and AlgTool interfaces, StoreGate `EventContext`, Data Handles, `ElementLink`.
 * `events/CaloCell`: `xAOD::CaloCell`, `xAOD::CaloDetDescriptor`, `xAOD::CaloCellContainer`, `xAOD::CaloDetDescriptorContainer`.
 * `events/CaloHit`: `xAOD::CaloHitContainer`.

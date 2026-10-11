@@ -11,13 +11,20 @@ RootStreamReader::RootStreamReader(std::string name)
     m_inputFile(""),
     m_ntupleName("CollectionTree"),
     m_outputLevel(1),
+    m_filterBySigma(false),
+    m_sigmaThreshold(2.0f),
+    m_descriptorsKey("CaloDetDescriptors"),
     m_file(nullptr),
     m_tree(nullptr),
-    m_handlers()
+    m_handlers(),
+    m_cellPassedIndices(std::make_shared<std::unordered_set<uint32_t>>())
 {
-  declareProperty("InputFile",   m_inputFile);
-  declareProperty("NtupleName",  m_ntupleName);
-  declareProperty("OutputLevel", m_outputLevel);
+  declareProperty("InputFile",        m_inputFile);
+  declareProperty("NtupleName",       m_ntupleName);
+  declareProperty("OutputLevel",      m_outputLevel);
+  declareProperty("FilterBySigma",    m_filterBySigma);
+  declareProperty("SigmaThreshold",   m_sigmaThreshold);
+  declareProperty("DescriptorsKey",   m_descriptorsKey);
 }
 
 RootStreamReader::~RootStreamReader()
@@ -84,15 +91,40 @@ StatusCode RootStreamReader::discoverBranches(TTree *tree)
     std::string typeName = bname.substr(0, sepPos);
     std::string key = bname.substr(sepPos + 1);
 
-    auto handler = BranchHandlerFactory::createHandler(typeName, key);
+    auto handler = BranchHandlerFactory::createHandler(
+        typeName, key, false, 0.4f, 0.4f, "Particles", {},
+        m_filterBySigma, m_sigmaThreshold, m_descriptorsKey, m_cellPassedIndices);
     if (handler) {
       handler->initReadBranch(tree);
-      MSG_INFO("Auto-discovered branch '" << bname << "' -> Type: " << typeName << ", Key: " << key);
+      if (m_filterBySigma && (typeName == "CaloCellContainer" || typeName == "CaloCell")) {
+        MSG_INFO("Auto-discovered branch '" << bname << "' -> Type: " << typeName << ", Key: " << key
+                 << " [2-sigma cell filtering active: E > " << m_sigmaThreshold << " * sigma]");
+      } else {
+        MSG_INFO("Auto-discovered branch '" << bname << "' -> Type: " << typeName << ", Key: " << key);
+      }
       m_handlers.push_back(std::move(handler));
     } else {
       MSG_DEBUG("No handler factory registered for type '" << typeName << "' (branch: " << bname << ")");
     }
   }
+
+  // Ensure CaloDetDescriptorContainer is processed before CaloCellContainer, and Cells before TruthCells
+  std::stable_sort(m_handlers.begin(), m_handlers.end(), [](const auto &a, const auto &b) {
+    bool a_desc = (a->typeName() == "CaloDetDescriptorContainer" || a->typeName() == "CaloDetDescriptor");
+    bool b_desc = (b->typeName() == "CaloDetDescriptorContainer" || b->typeName() == "CaloDetDescriptor");
+    if (a_desc && !b_desc) return true;
+    if (!a_desc && b_desc) return false;
+
+    bool a_cells = (a->key() == "Cells");
+    bool b_truth = (b->key() == "TruthCells");
+    if (a_cells && b_truth) return true;
+
+    bool a_truth = (a->key() == "TruthCells");
+    bool b_cells = (b->key() == "Cells");
+    if (a_truth && b_cells) return false;
+
+    return false;
+  });
 
   MSG_INFO("Auto-discovery complete. Registered " << m_handlers.size() << " branch readers.");
   return StatusCode::SUCCESS;

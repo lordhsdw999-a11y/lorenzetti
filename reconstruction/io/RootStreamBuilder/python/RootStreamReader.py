@@ -18,6 +18,9 @@ def RootStreamReaderCfg(
     name: str = "RootStreamReader",
     InputFile: str = "",
     TreeName: str = "CollectionTree",
+    FilterBySigma: bool = False,
+    SigmaThreshold: float = 2.0,
+    DescriptorsKey: str = "CaloDetDescriptors",
     OutputLevel: int = 0,
 ) -> Configurable:
     """
@@ -29,6 +32,9 @@ def RootStreamReaderCfg(
     :param name: Algorithm name.
     :param InputFile: Path to input ROOT file (optional if managed by EventLoop).
     :param TreeName: Name of the TTree inside the ROOT file.
+    :param FilterBySigma: Enable online 2-sigma noise cell filtering (ATLAS Run 4).
+    :param SigmaThreshold: Threshold multiplier for noise cut (default: 2.0).
+    :param DescriptorsKey: StoreGate key for master CaloDetDescriptorContainer.
     :param OutputLevel: Verbosity level (0=INFO, 1=DEBUG, etc.).
     """
     return Configurable(
@@ -36,6 +42,9 @@ def RootStreamReaderCfg(
         name=name,
         InputFile=InputFile,
         TreeName=TreeName,
+        FilterBySigma=FilterBySigma,
+        SigmaThreshold=SigmaThreshold,
+        DescriptorsKey=DescriptorsKey,
         OutputLevel=OutputLevel,
     )
 
@@ -68,16 +77,23 @@ def RootStreamESDReaderCfg(
     name: str = "RootStreamESDReader",
     InputFile: str = "",
     TreeName: str = "CollectionTree",
+    FilterBySigma: bool = False,
+    SigmaThreshold: float = 2.0,
+    DescriptorsKey: str = "CaloDetDescriptors",
     OutputLevel: int = 0,
     **_kwargs,
 ) -> Configurable:
     """
     Auto-discovery reader preset for ESD files (compatible with legacy scripts).
+    Supports optional online noise sigma cell filtering (ATLAS Run 4).
     """
     return RootStreamReaderCfg(
         name=name,
         InputFile=InputFile,
         TreeName=TreeName,
+        FilterBySigma=FilterBySigma,
+        SigmaThreshold=SigmaThreshold,
+        DescriptorsKey=DescriptorsKey,
         OutputLevel=OutputLevel,
     )
 
