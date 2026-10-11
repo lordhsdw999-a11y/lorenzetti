@@ -315,7 +315,10 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
         cli_entry.__annotations__ = {p.name: p.annotation for p in all_params}
         cli_entry.__doc__ = fn.__doc__
 
-        app = typer.Typer(pretty_exceptions_enable=False)
+        app = typer.Typer(
+            pretty_exceptions_enable=False,
+            context_settings={"help_option_names": ["-h", "--help"]},
+        )
         app.command()(cli_entry)
 
         def launcher(*args, **kw):

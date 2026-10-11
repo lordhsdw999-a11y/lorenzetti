@@ -60,8 +60,11 @@ fi
 #
 # Add libs and python to the path
 #
+if [ -d "/opt/lorenzetti-python/bin" ]; then
+  export PATH=/opt/lorenzetti-python/bin:$PATH
+fi
 export LD_LIBRARY_PATH=$PWD/lib:$LD_LIBRARY_PATH
-export PATH=$PWD/lib:$PATH:$PWD:$PWD/executables:$PWD/scripts/filters:$PWD/scripts/reco:$PWD/scripts/ATLAS:$PWD/scripts/scripts
+export PATH=$PWD/lib:$PWD:$PWD/executables:$PWD/scripts/filters:$PWD/scripts/reco:$PWD/scripts/ATLAS:$PWD/scripts/scripts:$PATH
 export PYTHONPATH=$PWD/python:$PYTHONPATH
 export LORENZETTI_SCRIPTS_DIR=$PWD/scripts
 export LORENZETTI_EVTGEN_DATA_DIR=$PWD/data/evtgen
