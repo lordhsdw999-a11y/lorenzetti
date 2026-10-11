@@ -300,6 +300,37 @@ python3 my_generator.py -o /data/events.root -e "0,15,42,108" -nt 2
 
 ---
 
+### 3.5 The `@file_parallel_job` Decorator (Batch & Folder Parallelism)
+
+While `@parallel_job` partitions an **event count** across processes for event generators, `@file_parallel_job` partitions a **collection of files or an entire folder** across isolated worker processes.
+
+```python
+from pathlib import Path
+from typing_extensions import Annotated
+import typer
+from GaugiKernel import file_parallel_job
+
+@file_parallel_job(ntuple_name="CollectionTree")
+def main(
+    input_file: Annotated[str | Path, typer.Option("-i", "--input-file", help="Input file")],
+    output_file: Annotated[str | Path, typer.Option("-o", "--output-file", help="Output file")],
+    number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads per job")] = 1,
+):
+    """Process a single file (executed inside clean worker subprocess)."""
+    print(f"Worker processing {input_file} -> {output_file} using {number_of_threads} threads")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Hierarchical Multithreading (Total Cores vs Threads Per Job)
+For heavy workloads (such as Geant4 in `simu_trf.py` or digitization in `digit_trf.py`), `@file_parallel_job` manages a two-level concurrency hierarchy:
+- `-nt 40` (40 total machine cores) with `--threads-per-job 4` (4 threads per Geant4 instance) $\to$ **10 concurrent worker processes** running simultaneously ($10 \times 4 = 40$ cores).
+- If processing a single file, it automatically allocates all `-nt` cores to that single job.
+- Supports input directories (`-i /data/evts/ -o /data/hits/`), glob patterns (`--pattern "*.EVT.root"`), comma-separated files, and automatic output name transformations (`.EVT.` $\to$ `.HIT.`).
+
+---
+
 ## 4. Setup and Environment
 
 To configure the runtime environment for `GaugiKernel`:

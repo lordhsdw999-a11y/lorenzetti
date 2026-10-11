@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-import typer
 
 from pathlib import Path
-from typing import List
-from typing import Annotated
-from GaugiKernel import LoggingLevel, ComponentAccumulator
-from RootStreamBuilder import RootStreamAODReader, recordable
-from RootStreamBuilder import RootStreamNtupleMaker
+from typing_extensions import Annotated
+import typer
 
-app = typer.Typer()
+from GaugiKernel import file_parallel_job, ComponentAccumulator, LoggingLevel
+from RootStreamBuilder import RootStreamAODReader, recordable, RootStreamNtupleMaker
 
-@app.command()
+
+@file_parallel_job(ntuple_name="physics", output_replace=(".AOD.", ".NTUPLE."))
 def main(
-    nov             : Annotated[List[int]   , typer.Option("--nov", "--number-of-events", help="The total number of events to run.")] = -1,
-    logging_level   : Annotated[str         , typer.Option("-l", "--log-level", help="Logging verbosity.")] = "INFO",
-    input_file      : Annotated[str | Path  , typer.Option("-i", "--input-file", help="The input file or folder to run the job.")],
-    output_file     : Annotated[str | Path  , typer.Option("-o", "--output-file", help="The output file.")],
+    input_file: Annotated[str | Path, typer.Option("-i", "--input-file", help="The input file or folder to run the job.")],
+    output_file: Annotated[str | Path, typer.Option("-o", "--output-file", help="The output file or folder.")],
+    number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads allocated per worker")] = 1,
+    nov: Annotated[int, typer.Option("--nov", "--number-of-events", help="The total number of events to run.")] = -1,
+    logging_level: Annotated[str, typer.Option("-l", "--log-level", help="Logging verbosity.")] = "INFO",
 ):
-    if isinstance(input_file, Path):
-        input_file = str(input_file)
-    if isinstance(output_file, Path):
-        output_file = str(output_file)
-
+    """
+    Creates an analysis flat ntuple (TTree 'physics') from AOD input files.
+    """
+    input_file = str(input_file)
+    output_file = str(output_file)
     outputLevel = LoggingLevel.toC(logging_level)
 
     acc = ComponentAccumulator("ComponentAccumulator", output_file)
@@ -33,11 +32,9 @@ def main(
         OutputEventKey=recordable("Events"),
         OutputTruthKey=recordable("Particles"),
         OutputClusterKey=recordable("Clusters"),
-        #OutputRingerKeys=[recordable(k) for k in ring_keys],
         OutputElectronKey=recordable("Electrons"),
         OutputSeedsKey=recordable("Seeds"),
         OutputTruthClusterKey=recordable("TruthClusters"),
-        #OutputTruthRingerKeys=[recordable(k) for k in truth_ring_keys],
         OutputRingerL0Key=recordable("RingsL0"),
         OutputTruthElectronKey=recordable("TruthElectrons"),
         NtupleName="CollectionTree",
@@ -50,12 +47,10 @@ def main(
         InputEventKey=recordable("Events"),
         InputTruthKey=recordable("Particles"),
         InputClusterKey=recordable("Clusters"),
-        #InputRingerKeys=[recordable(k) for k in ring_keys],
         InputRingerL0Key=recordable("RingsL0"),
         InputElectronKey=recordable("Electrons"),
         InputSeedsKey=recordable("Seeds"),
         InputTruthClusterKey=recordable("TruthClusters"),
-        #InputTruthRingerKeys=[recordable(k) for k in truth_ring_keys],
         InputTruthElectronKey=recordable("TruthElectrons"),
         OutputNtupleName="physics",
     )
@@ -64,4 +59,4 @@ def main(
 
 
 if __name__ == "__main__":
-    app()
+    main()
