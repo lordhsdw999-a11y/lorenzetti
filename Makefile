@@ -3,16 +3,31 @@ SHELL := /bin/bash
 DOCKER_NAMESPACE=lorenzetti
 SETUP_SCRIPT=../kernel/GaugiKernel/cmake/lzt_setup.sh
 
-all:  build_sources
+all: build_sources
 
 build_sources:
 	mkdir -p build
-	cd build && cmake .. && make -j1 && cp ${SETUP_SCRIPT} . && cd ..
+	cd build && cmake .. && make -j$$(nproc 2>/dev/null || echo 4) && cp ${SETUP_SCRIPT} . && cd ..
 
-test:
-	source .github/workflows/tests/test_local.sh tests
+test-units:
+	@echo "=== Running Package Unit Tests ==="
+	source build/lzt_setup.sh && python3 -m unittest discover -s kernel/GaugiKernel/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/CaloCell/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/CaloCluster/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/CaloHit/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/CaloRings/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/Egamma/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/EventInfo/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/SpacePoint/tests -p "test_*.py" -v
+	source build/lzt_setup.sh && python3 -m unittest discover -s events/TruthParticle/tests -p "test_*.py" -v
 
-.PHONY: all build_sources test docs doc_clean doc_venv_clean
+test-integration:
+	@echo "=== Running Root Integration Tests ==="
+	source build/lzt_setup.sh && python3 -m unittest discover -s tests -p "test_*.py" -v
+
+test: test-units test-integration
+
+.PHONY: all build_sources test test-units test-integration docs doc_clean doc_venv_clean
 
 VENV_DOC = doc/venv_doc
 
