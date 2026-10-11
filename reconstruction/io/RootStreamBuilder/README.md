@@ -54,8 +54,9 @@ graph TD
 | Class / Interface | Description |
 | :--- | :--- |
 | `IBranchHandler` | Polymorphic interface for binding, reading, and writing branches in the `TTree`. |
-| `GenericBranchHandler<TContainer, TStruct, TConverter>` | Type-safe C++ template handler for any `xAOD` container type. |
-| `BranchHandlerFactory` | Handler factory based on type name (`TypeName`), instantiating the correct template. |
+| `GenericBranchHandler<TContainer, TStruct, TConverter>` | Type-safe C++ template handler for any standard `xAOD` container type. |
+| `CaloHitBranchHandler` | Specialized branch handler for `CaloHitContainer` supporting selective Region of Interest (RoI) filtering during serialization. |
+| `BranchHandlerFactory` | Handler factory based on type name (`TypeName`), instantiating the correct template or specialized handler. |
 | `RootStreamReader` | Algorithm that discovers branches dynamically from the input tree and registers containers. |
 | `RootStreamMaker` | Algorithm that reads containers from `EventContext` specified in `ItemList` and fills the `TTree`. |
 | `RootStreamNtupleMaker` | Analysis algorithm producing flat `TTree` structures (e.g. `cl_et`, `cl_rings`, etc.). |
@@ -114,12 +115,61 @@ writer = RootStreamMakerCfg(
 )
 ```
 
-Convenience presets are also available for backward compatibility:
+Convenience presets are also available for standard data tiers:
 - `RootStreamAODMakerCfg(...)`
 - `RootStreamESDMakerCfg(...)`
 - `RootStreamHITMakerCfg(...)`
 
-### 4.3. Flat Analysis Ntuples (`RootStreamNtupleMaker`)
+### 4.3. HIT Tier & Online Region of Interest (RoI) Filtering (`RootStreamHITMaker`)
+
+During Geant4 detector shower simulation, particles shower extensively throughout the calorimeter, producing tens of thousands of energy deposits (`CaloHit`) across all layers and sampling cells. Persisting every detector hit indiscriminately results in massive file sizes (often gigabytes per job).
+
+To solve this efficiently, `RootStreamBuilder` provides an **online RoI filtering strategy** implemented in `CaloHitBranchHandler`:
+
+```mermaid
+graph LR
+    Hits["CaloHits in StoreGate<br/>('Hits')"] --> Check{"OnlyRoI Enabled?"}
+    Check -->|False| SaveAll["Serialize All Hits"]
+    Check -->|True| Filter["Evaluate Spatial Distance to Truth Particles:<br/>|Δη| < EtaWindow/2 and |Δφ| < PhiWindow/2"]
+    Truth["xAOD::TruthParticleContainer<br/>('Particles')"] --> Filter
+    Filter -->|Inside RoI or Cell Defect| SaveRoI["Serialize to TTree Branch<br/>('CaloHitContainer_Hits')"]
+    Filter -->|Outside RoI| Discard["Discard (Do Not Write)"]
+    SaveAll --> SaveRoI
+```
+
+#### Key Architecture Principles:
+* **Zero In-Memory Duplication**: Filtering is evaluated on the fly within `CaloHitBranchHandler::writeFromContext` directly during branch serialization. No temporary filtered collections are cloned into `StoreGate`.
+* **Angular Modulo Correction**: $\Delta\phi$ calculation uses `CaloPhiRange::diff` to correctly handle azimuthal coordinate wrapping at $[-\pi, +\pi]$.
+* **Hardware Defect Preservation**: An optional `CellHashes` list preserves designated detector channels (e.g., dead or hot cells) even if they lie outside all truth particle RoIs.
+
+#### Configuration Options:
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `OnlyRoI` | `bool` | `True` | Toggles whether to filter hits within the RoI cone (`True`) or persist all detector hits (`False`). |
+| `EtaWindow` | `float` | `0.4` | Full $\eta$ window size centered at each truth particle ($|\eta_{\text{hit}} - \eta_{\text{truth}}| < \Delta\eta / 2$). |
+| `PhiWindow` | `float` | `0.4` | Full $\phi$ window size centered at each truth particle ($|\Delta\phi| < \Delta\phi / 2$). |
+| `InputTruthKey` | `str` | `"Particles"` | StoreGate key of the truth particles providing RoI centroid coordinates. |
+| `CellHashes` | `list[int]` | `[]` | Optional list of specific cell hashes to always persist. |
+
+#### Usage Example (`simu_trf.py`):
+```python
+from RootStreamBuilder import RootStreamHITMakerCfg, recordable
+
+# Save only hits inside the active Region of Interest (around truth particles)
+hit_streamer = RootStreamHITMakerCfg(
+    "RootStreamHITMaker",
+    OutputLevel=output_level,
+    OnlyRoI=not save_all_hits,  # True by default; False when --save-all-hits is passed
+    EtaWindow=0.4,
+    PhiWindow=0.4,
+    InputHitsKey=recordable("Hits"),
+    InputEventKey=recordable("Events"),
+    InputTruthKey=recordable("Particles"),
+    InputSeedsKey=recordable("Seeds"),
+)
+```
+
+### 4.4. Flat Analysis Ntuples (`RootStreamNtupleMaker`)
 
 ```python
 from RootStreamBuilder import RootStreamNtupleMakerCfg

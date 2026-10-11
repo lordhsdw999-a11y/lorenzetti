@@ -145,5 +145,32 @@ class TestFileParallelJobPlanning(unittest.TestCase):
             self.assertEqual(plan[expected_out2]["threads_per_job"], 4)
 
 
+class TestCliFlagExtraction(unittest.TestCase):
+    """Unit tests for automatic Typer CLI option resolution."""
+
+    def test_extract_cli_flags(self):
+        import typer
+        from typing_extensions import Annotated
+        from GaugiKernel.Parallel import _extract_cli_flags, file_parallel_job
+
+        @file_parallel_job
+        def dummy_worker(
+            input_file: str,
+            output_file: str,
+            number_of_threads: int = 1,
+            logging_level: Annotated[str, typer.Option("-l", "--output-level")] = "INFO",
+            enable_feature: Annotated[bool, typer.Option("--enable-feature/--disable-feature")] = False,
+            simple_flag: Annotated[bool, typer.Option("--simple-flag")] = False,
+        ):
+            pass
+
+        flags, neg_flags = _extract_cli_flags(dummy_worker.app)
+        self.assertEqual(flags["logging_level"], "--output-level")
+        self.assertEqual(flags["enable_feature"], "--enable-feature")
+        self.assertEqual(neg_flags["enable_feature"], "--disable-feature")
+        self.assertEqual(flags["simple_flag"], "--simple-flag")
+        self.assertNotIn("simple_flag", neg_flags)
+
+
 if __name__ == "__main__":
     unittest.main()

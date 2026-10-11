@@ -44,6 +44,8 @@ class CaloCellBuilder(Logger):
         InputEventKey: str = "Events",
         FilterEmptyCells: bool = False,
         MinEnergy: float = 0.0,
+        FilterBySigma: Optional[bool] = None,
+        SigmaThreshold: Optional[float] = None,
         OutputLevel: int = LoggingLevel.toC("INFO"),
     ) -> None:
         """
@@ -60,6 +62,8 @@ class CaloCellBuilder(Logger):
             InputEventKey: StoreGate key for event headers.
             FilterEmptyCells: If True, discards cells with energy <= MinEnergy.
             MinEnergy: Minimum energy threshold for cell retention in MeV.
+            FilterBySigma: If True, discards cells with energy <= SigmaThreshold * sigma.
+            SigmaThreshold: Multiplier threshold for noise sigma cut (default: 2.0).
             OutputLevel: Logging verbosity level.
         """
         super().__init__(name)
@@ -72,6 +76,8 @@ class CaloCellBuilder(Logger):
         self.OutputDescriptorsKey: str = OutputDescriptorsKey
         self.FilterEmptyCells: bool = FilterEmptyCells
         self.MinEnergy: float = MinEnergy
+        self.FilterBySigma: bool = CaloFlags.FilterBySigma if FilterBySigma is None else FilterBySigma
+        self.SigmaThreshold: float = CaloFlags.SigmaThreshold if SigmaThreshold is None else SigmaThreshold
         self.Detector: Any = detector
         self.OutputCollectionKeys: List[str] = []
         self.RecoAlgs: List[Configurable] = []
@@ -185,6 +191,8 @@ class CaloCellBuilder(Logger):
             OutputDescriptorsKey=self.OutputDescriptorsKey,
             FilterEmptyCells=self.FilterEmptyCells,
             MinEnergy=self.MinEnergy,
+            FilterBySigma=self.FilterBySigma,
+            SigmaThreshold=self.SigmaThreshold,
             OutputLevel=self.OutputLevel,
         )
 

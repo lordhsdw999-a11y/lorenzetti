@@ -17,7 +17,7 @@ def main(
     output_file: Annotated[str | Path, typer.Option("-o", "--output-file", help="Path to output AOD file or directory")],
     number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads allocated per worker")] = 1,
     nov: Annotated[int, typer.Option("--nov", "--number-of-events", help="The total number of events to run.")] = -1,
-    logging_level: Annotated[str, typer.Option("-l", "--log-level", help="Logging verbosity.")] = "INFO",
+    output_level: Annotated[str, typer.Option("-l", "--output-level", help="Logging verbosity.")] = "INFO",
     preexec: Annotated[str, typer.Option("-p", "--preexec", help="The preexec command to run before reconstruction.")] = "''",
 ):
     """
@@ -27,7 +27,7 @@ def main(
     """
     input_file = str(input_file)
     output_file = str(output_file)
-    outputLevel = LoggingLevel.toC(logging_level)
+    outputLevel = LoggingLevel.toC(output_level)
 
     exec(preexec)
 

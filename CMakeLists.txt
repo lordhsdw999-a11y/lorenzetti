@@ -90,11 +90,11 @@ add_subdirectory( geometry )
 # reconstruction package
 
 add_subdirectory( reconstruction/calorimeter/CaloCellBuilder )
-#add_subdirectory( reconstruction/calorimeter/CaloClusterBuilder )
-#add_subdirectory( reconstruction/calorimeter/CaloRingsBuilder )
+add_subdirectory( reconstruction/calorimeter/CaloClusterBuilder )
+add_subdirectory( reconstruction/calorimeter/CaloRingsBuilder )
 add_subdirectory( reconstruction/calorimeter/CaloHitBuilder )
 add_subdirectory( reconstruction/io/RootStreamBuilder )
-#add_subdirectory( reconstruction/physics/EgammaBuilder )
+add_subdirectory( reconstruction/physics/EgammaBuilder )
 add_subdirectory( reconstruction/reco )
 ## generator package
 
@@ -119,10 +119,10 @@ add_library(lorenzetti SHARED
   $<TARGET_OBJECTS:geometry>
   $<TARGET_OBJECTS:CaloHitBuilder>
   $<TARGET_OBJECTS:CaloCellBuilder>
-  #$<TARGET_OBJECTS:CaloClusterBuilder>
-  #$<TARGET_OBJECTS:CaloRingsBuilder>
+  $<TARGET_OBJECTS:CaloClusterBuilder>
+  $<TARGET_OBJECTS:CaloRingsBuilder>
   $<TARGET_OBJECTS:RootStreamBuilder>
-  #$<TARGET_OBJECTS:EgammaBuilder>
+  $<TARGET_OBJECTS:EgammaBuilder>
   $<TARGET_OBJECTS:GenKernel>
   $<TARGET_OBJECTS:filters>
 )

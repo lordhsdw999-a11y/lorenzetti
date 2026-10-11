@@ -68,6 +68,12 @@ private:
 
   /*! Minimum energy threshold for cell retention when filtering is active (in MeV) */
   float m_minEnergy;
+
+  /*! Filter cells with energy <= m_sigmaThreshold * sigma */
+  bool m_filterBySigma;
+
+  /*! Multiplier threshold for noise sigma cut (reco energy > m_sigmaThreshold * sigma) */
+  float m_sigmaThreshold;
 };
 
 #endif

@@ -10,16 +10,27 @@ RootStreamMaker::RootStreamMaker(std::string name)
     m_outputFile(""),
     m_itemList(),
     m_outputLevel(1),
+    m_onlyRoI(false),
+    m_etaWindow(0.4f),
+    m_phiWindow(0.4f),
+    m_truthKey("Particles"),
+    m_cellHashes(),
     m_file(nullptr),
     m_tree(nullptr),
     m_ownsFile(false),
     m_handlers()
 {
-  declareProperty("TreeName",    m_ntupleName);
-  declareProperty("NtupleName",  m_ntupleName); // alias for backwards compatibility
-  declareProperty("ItemList",    m_itemList);
-  declareProperty("OutputFile",  m_outputFile);
-  declareProperty("OutputLevel", m_outputLevel);
+  declareProperty("TreeName",      m_ntupleName);
+  declareProperty("NtupleName",    m_ntupleName); // alias for backwards compatibility
+  declareProperty("ItemList",      m_itemList);
+  declareProperty("OutputFile",    m_outputFile);
+  declareProperty("OutputLevel",   m_outputLevel);
+  declareProperty("OnlyRoI",       m_onlyRoI);
+  declareProperty("EtaWindow",     m_etaWindow);
+  declareProperty("PhiWindow",     m_phiWindow);
+  declareProperty("TruthKey",      m_truthKey);
+  declareProperty("InputTruthKey", m_truthKey);
+  declareProperty("CellHashes",    m_cellHashes);
 }
 
 RootStreamMaker::~RootStreamMaker()
@@ -87,10 +98,16 @@ StatusCode RootStreamMaker::setupBranches()
     typeName = item.substr(0, sepPos);
     key = item.substr(sepPos + 1);
 
-    auto handler = BranchHandlerFactory::createHandler(typeName, key);
+    auto handler = BranchHandlerFactory::createHandler(
+        typeName, key, m_onlyRoI, m_etaWindow, m_phiWindow, m_truthKey, m_cellHashes);
     if (handler) {
       handler->initWriteBranch(m_tree);
-      MSG_INFO("Configured write branch '" << handler->branchName() << "' for item: " << item);
+      if (m_onlyRoI && (typeName == "CaloHitContainer" || typeName == "CaloHit")) {
+        MSG_INFO("Configured write branch '" << handler->branchName() << "' with RoI filtering (TruthKey: "
+                 << m_truthKey << ", EtaWindow: " << m_etaWindow << ", PhiWindow: " << m_phiWindow << ")");
+      } else {
+        MSG_INFO("Configured write branch '" << handler->branchName() << "' for item: " << item);
+      }
       m_handlers.push_back(std::move(handler));
     } else {
       MSG_ERROR("Unknown type '" << typeName << "' in item '" << item << "'. Cannot create branch handler.");

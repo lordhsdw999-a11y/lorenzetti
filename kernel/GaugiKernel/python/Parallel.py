@@ -405,6 +405,26 @@ class ParallelJob(Logger):
             list(executor.map(_exec_cmd, commands))
 
 
+def _extract_cli_flags(typer_app: typer.Typer) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """
+    Extracts mapping of parameter names to their primary long CLI option flags
+    and negative boolean flags (if any) from a Typer application.
+    """
+    param_flags: Dict[str, str] = {}
+    neg_flags: Dict[str, str] = {}
+    try:
+        from typer.main import get_command
+        click_cmd = get_command(typer_app)
+        for p in click_cmd.params:
+            long_opts = [opt for opt in p.opts if opt.startswith("--")]
+            param_flags[p.name] = long_opts[0] if long_opts else (p.opts[0] if p.opts else f"--{p.name.replace('_', '-')}")
+            if getattr(p, "secondary_opts", None):
+                neg_flags[p.name] = p.secondary_opts[0]
+    except Exception:
+        pass
+    return param_flags, neg_flags
+
+
 def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "particles"):
     """
     Decorator that transforms a worker function into a production Typer CLI application
@@ -582,6 +602,7 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
 
             script_path = shutil.which(sys.argv[0]) or os.path.abspath(sys.argv[0])
 
+            param_flags, neg_flags = _extract_cli_flags(app)
             commands_to_run: List[Tuple[str, List[str]]] = []
             for chunk_file, config in plan.items():
                 if not check_file_exists(chunk_file, ntuple_name) or overwrite:
@@ -604,10 +625,15 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
                         ])
 
                     for k, v in kwargs.items():
-                        cli_flag = f"--{k.replace('_', '-')}"
+                        cli_flag = param_flags.get(k, f"--{k.replace('_', '-')}")
                         if isinstance(v, bool):
                             if v:
                                 cmd.append(cli_flag)
+                            elif k in neg_flags:
+                                cmd.append(neg_flags[k])
+                        elif isinstance(v, (list, tuple)):
+                            for item in v:
+                                cmd.extend([cli_flag, str(item)])
                         elif v is not None:
                             cmd.extend([cli_flag, str(v)])
 
@@ -1078,6 +1104,7 @@ def file_parallel_job(
             script_path = shutil.which(sys.argv[0]) or os.path.abspath(sys.argv[0])
             actual_tpj, concurrency = job.get_threads_and_concurrency(len(plan))
 
+            param_flags, neg_flags = _extract_cli_flags(app)
             commands_to_run: List[Tuple[str, List[str]]] = []
             for dest_file, cfg in plan.items():
                 if not check_file_exists(dest_file, ntuple_name) or overwrite:
@@ -1090,10 +1117,15 @@ def file_parallel_job(
                         "-nt", str(cfg["threads_per_job"]),
                     ]
                     for k, v in kwargs.items():
-                        cli_flag = f"--{k.replace('_', '-')}"
+                        cli_flag = param_flags.get(k, f"--{k.replace('_', '-')}")
                         if isinstance(v, bool):
                             if v:
                                 cmd.append(cli_flag)
+                            elif k in neg_flags:
+                                cmd.append(neg_flags[k])
+                        elif isinstance(v, (list, tuple)):
+                            for item in v:
+                                cmd.extend([cli_flag, str(item)])
                         elif v is not None:
                             cmd.extend([cli_flag, str(v)])
 

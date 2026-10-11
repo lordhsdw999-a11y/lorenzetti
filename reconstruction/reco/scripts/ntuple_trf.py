@@ -14,14 +14,14 @@ def main(
     output_file: Annotated[str | Path, typer.Option("-o", "--output-file", help="The output file or folder.")],
     number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads allocated per worker")] = 1,
     nov: Annotated[int, typer.Option("--nov", "--number-of-events", help="The total number of events to run.")] = -1,
-    logging_level: Annotated[str, typer.Option("-l", "--log-level", help="Logging verbosity.")] = "INFO",
+    output_level: Annotated[str, typer.Option("-l", "--output-level", help="Logging verbosity.")] = "INFO",
 ):
     """
     Creates an analysis flat ntuple (TTree 'physics') from AOD input files.
     """
     input_file = str(input_file)
     output_file = str(output_file)
-    outputLevel = LoggingLevel.toC(logging_level)
+    outputLevel = LoggingLevel.toC(output_level)
 
     acc = ComponentAccumulator("ComponentAccumulator", output_file)
 

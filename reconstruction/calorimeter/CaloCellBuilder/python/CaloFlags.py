@@ -16,6 +16,8 @@ class CaloFlags(EnumStringification):
     DoCrossTalk: bool = False
     DoCOF: bool = False
     DoDefects: bool = False
+    FilterBySigma: bool = False
+    SigmaThreshold: float = 2.0
 
 
 class CrossTalkFlags(EnumStringification):

@@ -33,6 +33,8 @@ CaloCellMerge::CaloCellMerge(std::string name) :
   declareProperty("OutputDescriptorsKey", m_descriptorsKey = "CaloDetDescriptors");
   declareProperty("FilterEmptyCells", m_filterEmptyCells = false);
   declareProperty("MinEnergy", m_minEnergy = 0.0);
+  declareProperty("FilterBySigma", m_filterBySigma = false);
+  declareProperty("SigmaThreshold", m_sigmaThreshold = 2.0);
   declareProperty("OutputLevel", m_outputLevel = 1);
 }
 
@@ -115,14 +117,26 @@ StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
         continue;
       }
 
+      float reco_e = const_descriptor->e();
+      float truth_e = const_descriptor->edep();
+
+      if (m_filterBySigma) {
+        float sigma = const_descriptor->sigma();
+        float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : m_minEnergy;
+        if (reco_e <= threshold) {
+          continue;
+        }
+      } else if (m_filterEmptyCells && reco_e <= m_minEnergy && truth_e <= m_minEnergy) {
+        continue;
+      }
+
       // Clone descriptor into a new instance owned by master descContainer (DataVector)
       auto descriptor = new xAOD::CaloDetDescriptor(*const_descriptor);
       uint32_t desc_index = static_cast<uint32_t>(descContainer->size());
       descContainer->push_back(descriptor);
      
-      // 1. Create the truth cell (deposited energy from simulation)
-      float truth_e = const_descriptor->edep();
-      if (!m_filterEmptyCells || truth_e > m_minEnergy) {
+      // 1. Create the truth cell (deposited energy from simulation) corresponding to filtered real cell
+      if (m_filterBySigma || !m_filterEmptyCells || truth_e > m_minEnergy) {
         auto truth_cell = new xAOD::CaloCell();
         truth_cell->setEta(const_descriptor->eta());
         truth_cell->setPhi(const_descriptor->phi());
@@ -138,8 +152,7 @@ StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
       }
 
       // 2. Create the reconstructed cell (estimated energy from Optimal Filter)
-      float reco_e = const_descriptor->e();
-      if (!m_filterEmptyCells || reco_e > m_minEnergy) {
+      if (m_filterBySigma || !m_filterEmptyCells || reco_e > m_minEnergy) {
         auto cell = new xAOD::CaloCell();
         cell->setEta(const_descriptor->eta());
         cell->setPhi(const_descriptor->phi());

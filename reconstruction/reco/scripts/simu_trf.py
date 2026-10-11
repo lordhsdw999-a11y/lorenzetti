@@ -4,9 +4,9 @@ from pathlib import Path
 from typing_extensions import Annotated
 import typer
 
-from GaugiKernel import file_parallel_job, ComponentAccumulator, LoggingLevel
+from GaugiKernel import file_parallel_job, LoggingLevel
 from GaugiKernel.constants import MINUTES
-from G4Kernel import EventReader
+from G4Kernel import EventReader, ComponentAccumulator
 from RootStreamBuilder import recordable, RootStreamHITMaker
 from CaloHitBuilder import CaloHitBuilder
 from geometry import DetectorConstruction_v1
@@ -17,7 +17,7 @@ def main(
     input_file: Annotated[str | Path, typer.Option("-i", "--input-file", help="Input EVT file or directory")],
     output_file: Annotated[str | Path, typer.Option("-o", "--output-file", help="Destination HIT file or directory")],
     number_of_threads: Annotated[int, typer.Option("-nt", "--number-of-threads", help="Threads allocated per worker")] = 1,
-    logging_level: Annotated[str, typer.Option("-l", "--output-level", help="The output level messenger.")] = "INFO",
+    output_level: Annotated[str, typer.Option("-l", "--output-level", help="The output level messenger.")] = "INFO",
     pre_init: Annotated[str, typer.Option("--pre-init", help="The preinit command")] = "''",
     pre_exec: Annotated[str, typer.Option("--pre-exec", help="The preexec command")] = "''",
     post_exec: Annotated[str, typer.Option("--post-exec", help="The postexec command")] = "''",
@@ -31,7 +31,7 @@ def main(
     """
     input_file = str(input_file)
     output_file = str(output_file)
-    outputLevel = LoggingLevel.toC(logging_level)
+    outputLevel = LoggingLevel.toC(output_level)
 
     exec(pre_init)
 

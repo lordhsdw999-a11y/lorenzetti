@@ -39,6 +39,11 @@ private:
   std::string m_outputFile;
   std::vector<std::string> m_itemList;
   int m_outputLevel;
+  bool m_onlyRoI;
+  float m_etaWindow;
+  float m_phiWindow;
+  std::string m_truthKey;
+  std::vector<int> m_cellHashes;
 
   mutable TFile *m_file;
   mutable TTree *m_tree;

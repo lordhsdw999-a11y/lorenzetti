@@ -97,7 +97,7 @@ namespace Gaugi {
       }
     }
 
-  private:
+  protected:
     std::string m_typeName;
     std::string m_key;
     std::string m_branchName;

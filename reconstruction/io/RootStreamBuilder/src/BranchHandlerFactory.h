@@ -2,6 +2,7 @@
 #define BranchHandlerFactory_h
 
 #include "GenericBranchHandler.h"
+#include "CaloHitBranchHandler.h"
 
 // EDM Includes
 #include "EventInfo/EventInfoContainer.h"
@@ -43,8 +44,14 @@ namespace Gaugi {
    */
   class BranchHandlerFactory {
   public:
-    static std::unique_ptr<IBranchHandler> createHandler(const std::string &rawTypeName,
-                                                         const std::string &key)
+    static std::unique_ptr<IBranchHandler> createHandler(
+        const std::string &rawTypeName,
+        const std::string &key,
+        bool onlyRoI = false,
+        float etaWindow = 0.4f,
+        float phiWindow = 0.4f,
+        const std::string &truthKey = "Particles",
+        const std::vector<int> &cellHashes = {})
     {
       std::string typeName = rawTypeName;
       // Strip namespace if present
@@ -52,7 +59,10 @@ namespace Gaugi {
         typeName = typeName.substr(6);
       }
 
-      if (typeName == "EventInfoContainer" || typeName == "EventInfo") {
+      if (typeName == "CaloHitContainer" || typeName == "CaloHit") {
+        return std::make_unique<CaloHitBranchHandler>(key, onlyRoI, etaWindow, phiWindow, truthKey, cellHashes);
+      }
+      else if (typeName == "EventInfoContainer" || typeName == "EventInfo") {
         return std::make_unique<GenericBranchHandler<xAOD::EventInfoContainer,
                                                      xAOD::EventInfo_t,
                                                      xAOD::EventInfoConverter>>("EventInfoContainer", key);
@@ -67,11 +77,7 @@ namespace Gaugi {
                                                      xAOD::Seed_t,
                                                      xAOD::SeedConverter>>("SeedContainer", key);
       }
-      else if (typeName == "CaloHitContainer" || typeName == "CaloHit") {
-        return std::make_unique<GenericBranchHandler<xAOD::CaloHitContainer,
-                                                     xAOD::CaloHit_t,
-                                                     xAOD::CaloHitConverter>>("CaloHitContainer", key);
-      }
+
       else if (typeName == "CaloDetDescriptorContainer" || typeName == "CaloDetDescriptor") {
         return std::make_unique<GenericBranchHandler<xAOD::CaloDetDescriptorContainer,
                                                      xAOD::CaloDetDescriptor_t,
