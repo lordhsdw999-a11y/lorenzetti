@@ -47,6 +47,7 @@ namespace xAOD {
     float secondLambda;
     float fracMax;
     float lateralMom;
+    float longitudinalMom;
     std::vector<unsigned long int> cell_links;
     
     uint64_t cells_key_hash;

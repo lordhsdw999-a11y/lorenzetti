@@ -6,6 +6,7 @@ include_directories(${CMAKE_SOURCE_DIR} ${ROOT_INCLUDE_DIRS} ${CMAKE_CURRENT_SOU
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../kernel/GaugiKernel)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../CaloCell)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../CaloCluster)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../EventInfo)
 
 ROOT_GENERATE_DICTIONARY(TruthParticleDict ${HEADERS} LINKDEF ${CMAKE_CURRENT_SOURCE_DIR}/src/LinkDef.h  MODULE TruthParticle)
                                       

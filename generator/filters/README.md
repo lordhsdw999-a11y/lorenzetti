@@ -325,6 +325,7 @@ The generator scripts provide complete CLI interfaces built with **Typer** and a
 | `--event-numbers` | `-e` | `None` | Comma-separated list of event IDs (e.g. `'0,1,2,3'`). |
 | `--merge` / `--no-merge` | `-m` | `True` | When enabled, merges chunk files using ROOT `hadd` upon completion. |
 | `--overwrite` / `--no-overwrite` | | `True` | Overwrites existing output files. |
+| `--show-output` / `--no-show-output` | `-v` | `False` | Displays real-time stdout/stderr from worker processes prefixed by chunk. |
 | `--dry-run` | | `False` | Displays the planned event chunks and seeds without launching generation. |
 | `--job-file` | | `None` | JSON configuration file to pre-fill or override any CLI options. |
 

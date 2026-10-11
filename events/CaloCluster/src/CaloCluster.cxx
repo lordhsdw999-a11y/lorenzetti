@@ -1,7 +1,7 @@
 #include "CaloCluster/CaloCluster.h"
 #include "CaloCell/CaloCellContainer.h"
 #include "GaugiKernel/StringHash.h"
-#include "GaugiKernel/EventContext.h"
+#include "GaugiKernel/DataHandle.h"
 
 using namespace xAOD;
 
@@ -135,14 +135,17 @@ void CaloCluster::setCellsContainerKey(uint64_t keyHash) {
 
 const std::vector<const xAOD::CaloCell*>& CaloCluster::cells() const {
   if (m_container.empty() && !m_cellIndices.empty() && m_cellsKeyHash != 0) {
-    const auto *ctx = eventContext();
-    if (ctx) {
-      const auto *cellContainer = ctx->get<xAOD::CaloCellContainer>(m_cellsKeyHash);
-      if (cellContainer) {
-        m_container.reserve(m_cellIndices.size());
-        for (uint32_t idx : m_cellIndices) {
-          if (idx < cellContainer->size()) {
-            m_container.push_back(cellContainer->at(idx));
+    const auto *parentContainer = container();
+    if (parentContainer) {
+      auto *ctx = parentContainer->getContext();
+      if (ctx) {
+        const auto *cellContainer = ctx->get<xAOD::CaloCellContainer>(m_cellsKeyHash);
+        if (cellContainer) {
+          m_container.reserve(m_cellIndices.size());
+          for (uint32_t idx : m_cellIndices) {
+            if (idx < cellContainer->size()) {
+              m_container.push_back(cellContainer->at(idx));
+            }
           }
         }
       }

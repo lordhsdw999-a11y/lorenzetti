@@ -69,7 +69,7 @@ namespace SG {
     uint32_t index() const { return m_index; }
 
     /*! Set the owning EDM object */
-    void setOwner(const Gaugi::EDM* owner) { m_owner = owner; }
+    void setOwner(const Gaugi::EDM* owner) const { m_owner = owner; }
 
     /*! Set target by key string and index */
     void setElement(const std::string& key, uint32_t index, const TargetT* target = nullptr);
@@ -88,7 +88,7 @@ namespace SG {
     uint64_t    m_keyHash;               // 64-bit FNV-1a hash of the target collection
     uint32_t    m_index;                 // Position index inside target DataVector
 
-    const Gaugi::EDM* m_owner;           //! Transient pointer to owner EDM element
+    mutable const Gaugi::EDM* m_owner;   //! Transient pointer to owner EDM element
     mutable const TargetT* m_cachedPtr;  //! Transient cached pointer to resolved target
     mutable bool m_isResolved;           //! Transient flag indicating cache validity
   };
