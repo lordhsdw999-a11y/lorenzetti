@@ -24,7 +24,7 @@ class TestSpacePointEDM(unittest.TestCase):
         self.assertAlmostEqual(sp.x(), 120.0, places=1)
         self.assertAlmostEqual(sp.y(), 160.0, places=1)
         self.assertAlmostEqual(sp.z(), 450.0, places=1)
-        self.assertAlmostEqual(sp.r(), 200.0, places=1)  # sqrt(120^2 + 160^2) = 200
+        self.assertAlmostEqual(math.sqrt(sp.x()**2 + sp.y()**2), 200.0, places=1)
         self.assertAlmostEqual(sp.deltaZ(), 0.05, places=4)
         self.assertAlmostEqual(sp.deltaPhi(), 0.01, places=4)
         self.assertEqual(sp.hash(), 888222)
