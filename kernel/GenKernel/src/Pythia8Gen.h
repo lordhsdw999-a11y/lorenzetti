@@ -15,7 +15,7 @@ namespace generator
   {
   public:
     /*! Constructor */
-    Pythia8Gen();
+    Pythia8Gen(const std::string &name = "Pythia8");
     /*! Destructor */
     virtual ~Pythia8Gen() = default;
 

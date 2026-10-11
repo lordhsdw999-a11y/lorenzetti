@@ -7,16 +7,18 @@
 using namespace Pythia8;
 using namespace generator;
 
-Pythia8Gen::Pythia8Gen() : IMsgService("Pythia8"),
-                           IGenerator()
+Pythia8Gen::Pythia8Gen(const std::string &name) : IMsgService(name),
+                                                  IGenerator()
 
 {
   declareProperty("File", m_file = "");
   declareProperty("Seed", m_seed = 0);
+  declareProperty("OutputLevel", m_outputLevel = 1);
 }
 
 StatusCode Pythia8Gen::initialize()
 {
+  setMsgLevel(m_outputLevel);
   MSG_INFO("Initialize Pythia8 generator with seed " << m_seed << "...");
   std::stringstream cmdseed;
   cmdseed << "Random:seed = " << m_seed;

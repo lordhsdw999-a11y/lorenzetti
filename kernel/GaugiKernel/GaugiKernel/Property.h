@@ -13,6 +13,7 @@ namespace Gaugi{
   class PropertyBase{
     public:
       virtual ~PropertyBase() = 0;
+      virtual bool isVector() const { return false; }
   };
   
   
@@ -25,9 +26,24 @@ namespace Gaugi{
       ~Property() = default;
       void setValue( T& val ){ *m_ptr=val; };
       T getValue() { return *m_ptr; };
+      bool isVector() const override { return false; }
   
     private:
       T *m_ptr;
+  };
+
+  template <typename U>
+  class Property<std::vector<U>> : public PropertyBase
+  {
+    public:
+      Property( std::vector<U>& val ) : m_ptr(&val) {};
+      ~Property() = default;
+      void setValue( std::vector<U>& val ){ *m_ptr=val; };
+      std::vector<U> getValue() { return *m_ptr; };
+      bool isVector() const override { return true; }
+
+    private:
+      std::vector<U> *m_ptr;
   };
   
   
@@ -83,6 +99,8 @@ namespace Gaugi{
       void getProperty( std::string name, std::vector<Gaugi::AlgTool*> &value );
   
       bool hasProperty( std::string name);
+      std::vector<std::string> getProperties() const;
+      bool isVectorProperty( std::string name ) const;
  
  
      private:
@@ -180,6 +198,23 @@ namespace Gaugi{
    inline bool PropertyService::hasProperty( std::string name ){
      if (m_properties.find(name) != m_properties.end()) {
        return true; 
+     }
+     return false;
+   }
+
+   inline std::vector<std::string> PropertyService::getProperties() const {
+     std::vector<std::string> keys;
+     keys.reserve(m_properties.size());
+     for (const auto& pair : m_properties) {
+       keys.push_back(pair.first);
+     }
+     return keys;
+   }
+
+   inline bool PropertyService::isVectorProperty( std::string name ) const {
+     auto it = m_properties.find(name);
+     if (it != m_properties.end()) {
+       return it->second->isVector();
      }
      return false;
    }

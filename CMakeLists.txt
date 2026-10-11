@@ -74,35 +74,30 @@ add_subdirectory( kernel/GenKernel )
 
 
 # event packages
-add_subdirectory( events/CaloHit )
-add_subdirectory( events/CaloCell )
-add_subdirectory( events/SpacePoint )
-add_subdirectory( events/CaloCluster )
-add_subdirectory( events/EventInfo )
-add_subdirectory( events/TruthParticle )
-add_subdirectory( events/CaloRings )
-add_subdirectory( events/Egamma)
-
+#add_subdirectory( events/CaloHit )
+#add_subdirectory( events/CaloCell )
+#add_subdirectory( events/SpacePoint )
+#add_subdirectory( events/CaloCluster )
+#add_subdirectory( events/EventInfo )
+#add_subdirectory( events/TruthParticle )
+#add_subdirectory( events/CaloRings )
+#add_subdirectory( events/Egamma)
 # detector definitions
-add_subdirectory( geometry )
+#add_subdirectory( geometry )
 
 
 
 # reconstruction package
 
-add_subdirectory( reconstruction/calorimeter/CaloCellBuilder )
-add_subdirectory( reconstruction/calorimeter/CaloClusterBuilder )
-add_subdirectory( reconstruction/calorimeter/CaloRingsBuilder )
-add_subdirectory( reconstruction/calorimeter/CaloHitBuilder )
+#add_subdirectory( reconstruction/calorimeter/CaloCellBuilder )
+#add_subdirectory( reconstruction/calorimeter/CaloClusterBuilder )
+#add_subdirectory( reconstruction/calorimeter/CaloRingsBuilder )
+#add_subdirectory( reconstruction/calorimeter/CaloHitBuilder )
+#add_subdirectory( reconstruction/io/RootStreamBuilder )
+#add_subdirectory( reconstruction/physics/EgammaBuilder )
+#add_subdirectory( reconstruction/reco )
+## generator package
 
-
-add_subdirectory( reconstruction/io/RootStreamBuilder )
-add_subdirectory( reconstruction/physics/EgammaBuilder )
-add_subdirectory( reconstruction/reco )
-
-
-
-# generator package
 add_subdirectory( generator/filters )
 
 
@@ -112,22 +107,22 @@ add_subdirectory( generator/filters )
 
 add_library(lorenzetti SHARED
   $<TARGET_OBJECTS:GaugiKernel>
-  $<TARGET_OBJECTS:G4Kernel>
-  $<TARGET_OBJECTS:CaloHit>
-  $<TARGET_OBJECTS:CaloCell>
-  $<TARGET_OBJECTS:CaloCluster>
-  $<TARGET_OBJECTS:EventInfo>
-  $<TARGET_OBJECTS:TruthParticle>
-  $<TARGET_OBJECTS:CaloRings>
-  $<TARGET_OBJECTS:Egamma>
-  $<TARGET_OBJECTS:SpacePoint>
-  $<TARGET_OBJECTS:geometry>
-  $<TARGET_OBJECTS:CaloHitBuilder>
-  $<TARGET_OBJECTS:CaloCellBuilder>
-  $<TARGET_OBJECTS:CaloClusterBuilder>
-  $<TARGET_OBJECTS:CaloRingsBuilder>
-  $<TARGET_OBJECTS:RootStreamBuilder>
-  $<TARGET_OBJECTS:EgammaBuilder>
+  #$<TARGET_OBJECTS:G4Kernel>
+  #$<TARGET_OBJECTS:CaloHit>
+  #$<TARGET_OBJECTS:CaloCell>
+  #$<TARGET_OBJECTS:CaloCluster>
+  #$<TARGET_OBJECTS:EventInfo>
+  #$<TARGET_OBJECTS:TruthParticle>
+  #$<TARGET_OBJECTS:CaloRings>
+  #$<TARGET_OBJECTS:Egamma>
+  #$<TARGET_OBJECTS:SpacePoint>
+  #$<TARGET_OBJECTS:geometry>
+  #$<TARGET_OBJECTS:CaloHitBuilder>
+  #$<TARGET_OBJECTS:CaloCellBuilder>
+  #$<TARGET_OBJECTS:CaloClusterBuilder>
+  #$<TARGET_OBJECTS:CaloRingsBuilder>
+  #$<TARGET_OBJECTS:RootStreamBuilder>
+  #$<TARGET_OBJECTS:EgammaBuilder>
   $<TARGET_OBJECTS:GenKernel>
   $<TARGET_OBJECTS:filters>
 )

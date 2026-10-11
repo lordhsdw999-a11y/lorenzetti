@@ -22,7 +22,7 @@ namespace generator{
   {
     public:
   
-      EventTape();
+      EventTape(const std::string &name = "EventTape");
       ~EventTape();
   
       StatusCode initialize();

@@ -11,7 +11,7 @@ from pprint import pprint
 from tqdm import tqdm
 
 from GaugiKernel.constants import *
-from GaugiKernel import Cpp
+from GaugiKernel import Configurable
 from GaugiKernel.macros import *
 
 from geometry.v1.PhysicalVolume   import Plates
@@ -34,7 +34,7 @@ def flatten(nested_list : List) -> List:
   return result
 
 
-class DetectorConstruction_v1( Cpp ):
+class DetectorConstruction_v1(Configurable):
 
   def __init__( self, 
                 name              : str, 
@@ -42,10 +42,9 @@ class DetectorConstruction_v1( Cpp ):
                 CutOnPhi          : bool=False,
               ):
 
-    Cpp.__init__(self, ROOT.DetectorConstruction_v1(name) ) 
-    
-    self.setProperty( "UseMagneticField", UseMagneticField  )
-    self.setProperty( "CutOnPhi"        , CutOnPhi          )
+    super().__init__(ROOT.DetectorConstruction_v1, name,
+                     UseMagneticField=UseMagneticField,
+                     CutOnPhi=CutOnPhi)
 
     self.samplings = []
     self.volumes = []
@@ -75,7 +74,7 @@ class DetectorConstruction_v1( Cpp ):
     volumes.extend( [samp.volume() for samp in self.samplings] )
           
     for pv in tqdm( volumes, desc="Compiling  volumes...", ncols=70):
-      self._core.AddVolume( pv.Name, pv.Plates, pv.AbsorberMaterial, pv.GapMaterial, 
+      self._c_ptr.AddVolume( pv.Name, pv.Plates, pv.AbsorberMaterial, pv.GapMaterial, 
                              # layer
                              pv.NofLayers, 
                              pv.AbsorberThickness, 

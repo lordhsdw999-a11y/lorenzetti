@@ -10,8 +10,8 @@ using namespace Gaugi;
 using namespace generator;
 
 
-EventTape::EventTape(): 
-  IMsgService("EventTape"),
+EventTape::EventTape(const std::string &name): 
+  IMsgService(name),
   PropertyService(),
   m_store(nullptr)
 {

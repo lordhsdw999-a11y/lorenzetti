@@ -1,21 +1,31 @@
-__all__ = ["FixedRegion"]
+"""
+FixedRegion filter configuration helper.
 
-from GaugiKernel import Cpp
-from GaugiKernel.macros import *
-from ROOT import generator
+Provides FixedRegionCfg helper to configure ROOT.generator.FixedRegion.
+"""
 
+import ROOT
 
-class FixedRegion( Cpp ):
+from GaugiKernel import Configurable, LoggingLevel
 
-  def __init__( self, name,
-                      Eta         : float=0.0,
-                      Phi         : float=0.0,
-                      OutputLevel : int=0 ): 
-    
-    Cpp.__init__(self, generator.FixedRegion(name))
-    self.setProperty( "Eta"          , Eta           )
-    self.setProperty( "Phi"          , Phi           )
-    self.setProperty( "OutputLevel"  , OutputLevel   )
+__all__ = ["FixedRegionCfg"]
 
 
-
+def FixedRegionCfg(
+    name: str = "FixedRegion",
+    Eta: float = 0.0,
+    Phi: float = 0.0,
+    OutputLevel: int = LoggingLevel.toC("INFO"),
+    **kwargs
+) -> Configurable:
+    """
+    Configures and returns a FixedRegion algorithm instance.
+    """
+    return Configurable(
+        lambda n: ROOT.generator.FixedRegion(n),
+        name,
+        Eta=Eta,
+        Phi=Phi,
+        OutputLevel=OutputLevel,
+        **kwargs
+    )

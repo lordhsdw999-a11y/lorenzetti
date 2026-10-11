@@ -1,53 +1,48 @@
-__all__ = ["Pileup"]
+"""
+Pileup filter configuration helper.
 
-from GaugiKernel import Cpp
-from GaugiKernel.macros import *
-from ROOT import generator
+Provides PileupCfg helper to configure ROOT.generator.Pileup.
+"""
 
+from typing import Any
+import ROOT
 
-class Pileup( Cpp ):
+from GaugiKernel import Configurable, LoggingLevel
 
-  __allow_keys = [
-                "EtaMax",
-                "PileupAvg",
-                "PileupSigma",
-                "PileupPerBunch",
-                "BunchIdStart",
-                "BunchIdEnd",
-                "Select",
-                "DeltaEta",
-                "DeltaPhi",
-                "OutputLevel",
-                ]
-
-  def __init__( self, name, gen, 
-                EtaMax         : float=1.4,
-                PileupAvg      : float=0,
-                PileupSigma    : float=0,
-                PileupPerBunch : float=-1,
-                BunchIdStart   : int=-8,
-                BunchIdEnd     : int=7,
-                Select         : int=2,
-                DeltaEta       : float=0.22,
-                DeltaPhi       : float=0.22,
-                OutputLevel    : int=0
-              ): 
-    
-    Cpp.__init__(self, generator.Pileup(name, gen.core()))
-    self.__gen = gen
-
-    self.setProperty( "EtaMax"        , EtaMax         )
-    self.setProperty( "PileupAvg"     , PileupAvg      )
-    self.setProperty( "PileupSigma"   , PileupSigma    )
-    self.setProperty( "PileupPerBunch", PileupPerBunch )
-    self.setProperty( "BunchIdStart"  , BunchIdStart   )
-    self.setProperty( "BunchIdEnd"    , BunchIdEnd     )
-    self.setProperty( "Select"        , Select         )
-    self.setProperty( "DeltaEta"      , DeltaEta       )
-    self.setProperty( "DeltaPhi"      , DeltaPhi       )
+__all__ = ["PileupCfg"]
 
 
-  def gun(self):
-    return self.__gen
-
-
+def PileupCfg(
+    name: str = "Pileup",
+    gen: Any = None,
+    EtaMax: float = 1.4,
+    PileupAvg: float = 0.0,
+    PileupSigma: float = 0.0,
+    PileupPerBunch: float = -1.0,
+    BunchIdStart: int = -8,
+    BunchIdEnd: int = 7,
+    Select: int = 2,
+    DeltaEta: float = 0.22,
+    DeltaPhi: float = 0.22,
+    OutputLevel: int = LoggingLevel.toC("INFO"),
+    **kwargs
+) -> Configurable:
+    """
+    Configures and returns a Pileup filter algorithm instance.
+    """
+    gen_ptr = gen.c_ptr() if hasattr(gen, "c_ptr") else gen
+    return Configurable(
+        lambda n: ROOT.generator.Pileup(n, gen_ptr),
+        name,
+        EtaMax=EtaMax,
+        PileupAvg=PileupAvg,
+        PileupSigma=PileupSigma,
+        PileupPerBunch=PileupPerBunch,
+        BunchIdStart=BunchIdStart,
+        BunchIdEnd=BunchIdEnd,
+        Select=Select,
+        DeltaEta=DeltaEta,
+        DeltaPhi=DeltaPhi,
+        OutputLevel=OutputLevel,
+        **kwargs
+    )

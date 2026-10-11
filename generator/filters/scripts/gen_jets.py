@@ -1,28 +1,4 @@
 #!/usr/bin/env python3
-
-import argparse
-import sys
-import os
-import evtgen
-
-from math        import ceil
-from pathlib     import Path
-from typing      import List
-from joblib      import Parallel, delayed
-from evtgen      import Pythia8
-from filters     import JF17
-from GenKernel   import EventTape
-from GaugiKernel import get_argparser_formatter
-from GaugiKernel import LoggingLevel
-from GaugiKernel import GeV
-
-from reco.gen_job import merge_args, update_args, create_parallel_job
-
-
-datapath    = os.environ["LORENZETTI_EVTGEN_DATA_DIR"]
-JF17_FILE   = f'{datapath}/jet_config.cmnd'
-
-
 """
 Script: gen_jets.py
 Purpose: Generates Jet simulation events using Pythia8 and the JF17 filter.
@@ -30,132 +6,64 @@ Usage:
     gen_jets.py -o output.root --nov 100 [options]
 """
 
-def parse_args():
+import os
+from pathlib import Path
+from typing import List
+from typing_extensions import Annotated
+import typer
+
+from GaugiKernel import parallel_job, LoggingLevel, GeV
+from GenKernel import Pythia8Cfg as Pythia8, EventTapeCfg as EventTape
+from filters import JF17Cfg as JF17
+
+
+datapath = os.environ.get("LORENZETTI_EVTGEN_DATA_DIR", "")
+JF17_FILE = f"{datapath}/jet_config.cmnd"
+
+
+@parallel_job
+def main(
+    events: List[int],
+    output_file: str,
+    seed: int,
+    run_number: Annotated[int, typer.Option("--run-number", help="The run number.")] = 0,
+    output_level: Annotated[str, typer.Option("--output-level", help="The output level messenger.")] = "INFO",
+    eta_min: Annotated[float, typer.Option("--eta-min", help="The eta min used in generator.")] = 0.0,
+    eta_max: Annotated[float, typer.Option("--eta-max", help="The eta max used in generator.")] = 3.2,
+    energy_min: Annotated[float, typer.Option("--energy-min", help="Minimum energy in GeV.")] = 17.0,
+    energy_max: Annotated[float, typer.Option("--energy-max", help="Maximum energy in GeV.")] = 6500.0,
+    jf17_file: Annotated[str, typer.Option("--jf17-file", help="The pythia JF17 file configuration.")] = JF17_FILE,
+):
     """
-    Parses command-line arguments for Jet event generation.
-
-    Returns:
-        argparse.Namespace: Parsed and merged arguments containing configuration
-                            for run number, energy ranges, eta limits, and file paths.
+    Generates Jet simulation events using Pythia8 and the JF17 filter.
     """
+    outputLevel = LoggingLevel.toC(output_level)
 
-    parser = argparse.ArgumentParser(
-        description='',
-        formatter_class=get_argparser_formatter(),
-        add_help=False)
+    tape = EventTape(
+        "EventTape",
+        OutputFile=output_file,
+        RunNumber=run_number,
+    )
 
-    parser.add_argument('--run-number', action='store',
-                        dest='run_number', required=False,
-                        type=int, default=0,
-                        help="The run number.")
-    parser.add_argument('--output-level', action='store',
-                        dest='output_level', required=False,
-                        type=str, default="INFO",
-                        help="The output level messenger.")
-    parser.add_argument('--eta-min', action='store',
-                        dest='eta_min', required=False,
-                        type=float, default=0.0,
-                        help="The eta min used in generator.")
-    parser.add_argument('--eta-max', action='store',
-                        dest='eta_max', required=False,
-                        type=float, default=3.2,
-                        help="The eta max used in generator.")
-    parser.add_argument('--energy-min', action='store', 
-                        dest='energy_min', required = False, 
-                        type=float, default=17,
-                        help = "Minimum energy")
-    parser.add_argument('--energy-max', action='store', 
-                        dest='energy_max', required = False, 
-                        type=float, default=6500, 
-                        help = "Maximum energy")
-    parser.add_argument('--jf17-file', action='store',
-                        dest='jf17_file', required=False,
-                        type=str, default=JF17_FILE,
-                        help="The pythia JF17 file configuration.")
- 
-
-    return merge_args(parser)
-
-
-def main(events: List[int],
-         logging_level: str,
-         output_file: str,
-         run_number: int,
-         seed: int,
-         jf17_file: str,
-         eta_min: float,
-         eta_max: float,
-         energy_min: float,
-         energy_max: float
-        ):
-    """
-    Main execution logic for Jet generation.
-
-    Sets up the EventTape and JF17 filter (wrapping Pythia8) to generate
-    jet events within specified kinematic bins. A "Tape" acts as a stream
-    manager that writes generated events to an output file.
-
-    Args:
-        events (List[int]): List of event indices to proceed.
-        logging_level (str): Logging output verbosity.
-        output_file (str): Destination path for the output file.
-        run_number (int): Run identifier.
-        seed (int): Random seed for reproducibility.
-        jf17_file (str): Path to the Pythia8 configuration file (e.g., jet_config.cmnd).
-        eta_min (float): Minimum pseudorapidity for jet filtering.
-        eta_max (float): Maximum pseudorapidity for jet filtering.
-        energy_min (float): Minimum transverse energy (Pt) for the filter.
-        energy_max (float): Maximum transverse energy (Pt) for the filter.
-    """
-
-    print(seed)
-    outputLevel = LoggingLevel.toC(logging_level)
-
-    tape = EventTape("EventTape", OutputFile=output_file,
-                     RunNumber=run_number)
-
-    
-    jets = JF17( "JF17",
-                 #SherpaGun("Generator", File=main_file, Seed=args.seed)
-                 Pythia8("Generator", 
-                         File=jf17_file, 
-                         Seed=seed),
-                 EtaMax      = eta_max,
-                 EtaMin      = eta_min,
-                 MinPt       = energy_min*GeV,
-                 Select      = 2,
-                 EtaWindow   = 0.4,
-                 PhiWindow   = 0.4,
-                 OutputLevel = outputLevel,
-                )
-
+    jets = JF17(
+        "JF17",
+        Pythia8(
+            "Generator",
+            File=jf17_file,
+            Seed=seed,
+        ),
+        EtaMax=eta_max,
+        EtaMin=eta_min,
+        MinPt=energy_min * GeV,
+        Select=2,
+        EtaWindow=0.4,
+        PhiWindow=0.4,
+        OutputLevel=outputLevel,
+    )
 
     tape += jets
     tape.run(events)
 
 
-
 if __name__ == "__main__":
-    parser=parse_args()
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
-
-    args = parser.parse_args()
-    if Path(args.output_file).is_dir():
-        raise IsADirectoryError(f"Output file '{args.output_file}' was expected to be a file, "
-                                 "but it is a directory.")
-    
-    args = update_args(args)
-    pool = create_parallel_job(args)
-    pool(main,
-        logging_level=args.output_level,
-        run_number=args.run_number,
-        jf17_file=args.jf17_file,
-        eta_min=args.eta_min,
-        eta_max=args.eta_max,
-        energy_min=args.energy_min,
-        energy_max=args.energy_max
-    )
-      
- 
+    main()

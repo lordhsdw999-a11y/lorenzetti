@@ -3,7 +3,7 @@
 #include "helper.h"
 #include "TMath.h"
 #include "Pythia8/Pythia.h"
-#include "../../evtgen/src/Pythia8Gen.h"
+#include "src/Pythia8Gen.h"
 
 using namespace Pythia8;
 using namespace generator;

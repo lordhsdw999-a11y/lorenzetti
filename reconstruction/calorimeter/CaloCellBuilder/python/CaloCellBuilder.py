@@ -153,9 +153,9 @@ class CaloCellBuilder(Logger):
                     NoiseStd=pulse.NoiseStd,
                     BadRunListFile=AnomalyFlags.BadRunListFile,
                 )
-                maker.Tools += [anomaly]
+                maker.Tools += anomaly
 
-            maker.Tools += [of]
+            maker.Tools += of
             self.RecoAlgs.append(maker)
 
             if do_crosstalk:

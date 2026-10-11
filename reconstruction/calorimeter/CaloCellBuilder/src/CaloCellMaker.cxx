@@ -74,6 +74,8 @@ CaloCellMaker::CaloCellMaker(std::string name) :
   declareProperty("OutputLevel"             , m_outputLevel         = 1                );
   declareProperty("DetailedHistograms"      , m_detailedHistograms  = false            );
   declareProperty("HistogramPath"           , m_histPath            = "/CaloCellMaker" );
+  declareProperty("PulseGenerator"          , m_pulseGenerator      = nullptr          );
+  declareProperty("Tools"                   , m_toolHandles                            );
 }
 
 //!=====================================================================

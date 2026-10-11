@@ -4,21 +4,18 @@ from GaugiKernel import Logger
 from GaugiKernel.macros import *
 
 
-class CaloPhiRange( Logger ):
+class CaloPhiRange(Logger):
 
-  def __init__( self ):     
+  def __init__(self):     
     Logger.__init__(self)
     import ROOT
     ROOT.gSystem.Load('liblorenzetti')
     from ROOT import CaloPhiRange
     # Create the algorithm
-    self.__core = CaloPhiRange()
+    self._c_ptr = CaloPhiRange()
 
-  def core(self):
-    return self.__core
+  def c_ptr(self):
+    return self._c_ptr
 
   def diff(self, phi1, phi2):
-    return self.core().diff(phi1,phi2)
-
-
-
+    return self.c_ptr().diff(phi1, phi2)

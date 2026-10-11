@@ -29,13 +29,13 @@ class ComponentAccumulator( Logger ):
 
   def SetReader(self, reader):
     self.__reader = reader
-    self.__acc.push_back(reader.core())
+    self.__acc.push_back(reader.c_ptr())
 
   def __add__( self, algs ):
     if type(algs) is not list:
       algs = [algs]
     for alg in algs:
-      self.__acc.push_back(alg.core())
+      self.__acc.push_back(alg.c_ptr())
     return self
 
   def GetEntries(self):

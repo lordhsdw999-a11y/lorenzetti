@@ -674,6 +674,10 @@ class MsgService : virtual public IMsgService
     MsgService() :
       m_log( m_defName,  m_defLevel, m_defUseColor ){;}
 
+    explicit MsgService(const std::string& name, const MSG::Level lvl = MSG::INFO, const bool useColor = true)
+      : IMsgService(name, lvl, useColor),
+        m_log(name, lvl, useColor) {;}
+
     explicit MsgService(const int lvl)
       : m_log( m_defName, lvl, m_defUseColor ){;}
 

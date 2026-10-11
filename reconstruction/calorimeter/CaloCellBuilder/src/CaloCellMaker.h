@@ -55,20 +55,12 @@ public:
     m_toolHandles.push_back(tool);
   }
 
-  void __func__add__Tool(Gaugi::AlgTool *tool) {
-    addTool(tool);
-  }
-
   /**
    * @brief Set the pulse generator tool.
    * @param tool Pointer to the PulseGenerator tool.
    */
   void setPulseGenerator(Gaugi::AlgTool *tool) {
     m_pulseGenerator = tool;
-  }
-
-  void __func__set__PulseGenerator(Gaugi::AlgTool *tool) {
-    setPulseGenerator(tool);
   }
 
 private:

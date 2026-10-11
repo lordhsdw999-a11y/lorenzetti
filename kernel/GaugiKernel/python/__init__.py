@@ -7,8 +7,11 @@ import inspect
 import argparse
 
 ROOT.gSystem.Load('liblorenzetti')
-# NOTE: Do not remove this line, this will break eveything for some reason...
-from ROOT import RunManager
+# NOTE: RunManager is provided by G4Kernel when available
+try:
+    from ROOT import RunManager
+except ImportError:
+    pass
 
 from rich_argparse import RichHelpFormatter
 
@@ -78,10 +81,6 @@ from . import Logger
 __all__.extend(Logger.__all__)
 from .Logger import *
 
-from . import Cpp
-__all__.extend(Cpp.__all__)
-from .Cpp import *
-
 from . import constants
 __all__.extend(constants.__all__)
 from .constants import *
@@ -89,5 +88,13 @@ from .constants import *
 from . import ComponentAccumulator
 __all__.extend(ComponentAccumulator.__all__)
 from .ComponentAccumulator import *
+
+from . import Configurable
+__all__.extend(Configurable.__all__)
+from .Configurable import *
+
+from . import Parallel
+__all__.extend(Parallel.__all__)
+from .Parallel import *
 
 
