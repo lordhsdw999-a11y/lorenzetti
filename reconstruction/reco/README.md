@@ -52,10 +52,13 @@ All transformation scripts are decorated with `@file_parallel_job` from `GaugiKe
 - **Resilience**: Skips already completed, valid output files via `--no-overwrite`.
 - **Live Monitoring**: Streams real-time subprocess outputs with worker tags via `-v` / `--show-output`.
 
-### Concurrency Formula
-$$\text{Concurrent Workers} = \max\left(1, \left\lfloor \frac{\text{Total Threads (-nt)}}{\text{Threads Per Job (--threads-per-job)}} \right\rfloor\right)$$
+### Concurrency Control
+Worker concurrency can be set either explicitly via workers or via hierarchical multithreading:
+- **Explicit Workers (`-nw` / `--number-of-workers`)**: Directly sets the number of concurrent worker processes running simultaneously.
+- **Hierarchical Multithreading (`-nt` and `--threads-per-job`)**:
+  $$\text{Concurrent Workers} = \max\left(1, \left\lfloor \frac{\text{Total Threads (-nt)}}{\text{Threads Per Job (--threads-per-job)}} \right\rfloor\right)$$
 
-*Example*: Running with `-nt 40` and `--threads-per-job 4` schedules **10 concurrent workers** executing simultaneously, each utilizing 4 threads within Geant4 ($10 \times 4 = 40$ CPU cores).
+*Example*: Running with `-nw 10 --threads-per-job 4` (or `-nt 40 --threads-per-job 4`) schedules **10 concurrent workers** executing simultaneously, each utilizing 4 threads within Geant4 ($10 \times 4 = 40$ CPU cores).
 
 ---
 
@@ -65,7 +68,10 @@ $$\text{Concurrent Workers} = \max\left(1, \left\lfloor \frac{\text{Total Thread
 Propagates particles through the ATLAS calorimeter geometry using Geant4.
 
 ```bash
-# Process a folder of EVT files using 40 cores (10 parallel jobs of 4 threads each)
+# Process a folder of EVT files using 10 worker processes (4 threads per worker = 40 cores):
+simu_trf.py -i /data/evts/ -o /data/hits/ -nw 10 --threads-per-job 4
+
+# Or using total cores division:
 simu_trf.py -i /data/evts/ -o /data/hits/ -nt 40 --threads-per-job 4
 
 # Run single file with magnetic field and 100 events

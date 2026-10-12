@@ -263,7 +263,7 @@ Every script decorated with `@parallel_job` exposes the following options:
 | :--- | :--- | :--- | :--- |
 | `--output-file` | `-o` | *(Required)* | Destination merged ROOT file. |
 | `--nov`, `--number-of-events` | | `-1` | Total number of events to process. |
-| `--number-of-threads` | `-nt` | `1` | Number of concurrent worker processes. |
+| `--number-of-workers` | `-nw`, `-nt` | `1` | Number of concurrent worker processes (`--number-of-threads` supported as alias). |
 | `--events-per-job` | | `-1` | Custom number of events per chunk (auto-computed if `-1`). |
 | `--seed` | `-s` | `512` | Base random seed (each worker receives an independent seed). |
 | `--event-numbers` | `-e` | `None` | Comma-separated list of explicit event IDs (e.g. `'0,1,5,10'`). |
@@ -278,24 +278,24 @@ Every script decorated with `@parallel_job` exposes the following options:
 
 ### 3.4 CLI Usage Examples
 
-#### Run 1000 events across 8 processes
+#### Run 1000 events across 8 worker processes
 ```bash
-python3 my_generator.py -o /data/events.root --nov 1000 -nt 8
+python3 my_generator.py -o /data/events.root --nov 1000 -nw 8
 ```
 
 #### Inspect execution plan before running (Dry Run)
 ```bash
-python3 my_generator.py -o /data/events.root --nov 1000 -nt 8 --dry-run
+python3 my_generator.py -o /data/events.root --nov 1000 -nw 8 --dry-run
 ```
 
 #### Stream real-time logs from all workers
 ```bash
-python3 my_generator.py -o /data/events.root --nov 100 -nt 4 -v
+python3 my_generator.py -o /data/events.root --nov 100 -nw 4 -v
 ```
 
 #### Run specific non-contiguous events
 ```bash
-python3 my_generator.py -o /data/events.root -e "0,15,42,108" -nt 2
+python3 my_generator.py -o /data/events.root -e "0,15,42,108" -nw 2
 ```
 
 ---
@@ -323,10 +323,32 @@ if __name__ == "__main__":
     main()
 ```
 
-#### Hierarchical Multithreading (Total Cores vs Threads Per Job)
-For heavy workloads (such as Geant4 in `simu_trf.py` or digitization in `digit_trf.py`), `@file_parallel_job` manages a two-level concurrency hierarchy:
-- `-nt 40` (40 total machine cores) with `--threads-per-job 4` (4 threads per Geant4 instance) $\to$ **10 concurrent worker processes** running simultaneously ($10 \times 4 = 40$ cores).
-- If processing a single file, it automatically allocates all `-nt` cores to that single job.
+#### Concurrency and Hierarchical Multithreading
+For file processing workloads (such as Geant4 in `simu_trf.py` or digitization in `digit_trf.py`), `@file_parallel_job` allows explicit control over worker concurrency and threads per job:
+
+| Option | Short | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--number-of-workers` | `-nw` | `None` | **Number of concurrent worker processes** to process files simultaneously. |
+| `--number-of-threads` | `-nt` | `1` | Total machine cores allocated across jobs (or threads per worker if `-nw` is set). |
+| `--threads-per-job` | | `-1` | Threads assigned to each worker subprocess (`-1` auto-computes). |
+| `--pattern`, `--file-pattern` | | `"*.root"` | Glob pattern when input is a directory. |
+| `--merge` / `--no-merge` | `-m` | `False` | Merge output ROOT files with `hadd -f` after completion. |
+| `--overwrite` / `--no-overwrite` | | `True` | Overwrite existing output files. |
+| `--show-output` / `--no-show-output` | `-v` | `False` | Stream stdout/stderr from worker processes in real time. |
+| `--dry-run` | | `False` | Display execution plan table without running workers. |
+
+#### Usage Examples:
+```bash
+# 1. Process files using 8 concurrent worker processes:
+simu_trf.py -i /data/evts/ -o /data/hits/ -nw 8
+
+# 2. Process files using 4 workers, each running with 2 threads (4 * 2 = 8 cores):
+simu_trf.py -i /data/evts/ -o /data/hits/ -nw 4 -nt 2
+
+# 3. Automatic division: 40 total cores with 4 threads per Geant4 job -> 10 workers:
+simu_trf.py -i /data/evts/ -o /data/hits/ -nt 40 --threads-per-job 4
+```
+
 - Supports input directories (`-i /data/evts/ -o /data/hits/`), glob patterns (`--pattern "*.EVT.root"`), comma-separated files, and automatic output name transformations (`.EVT.` $\to$ `.HIT.`).
 
 ---

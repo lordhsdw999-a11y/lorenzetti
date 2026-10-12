@@ -52,10 +52,10 @@ Basic usage in a generator script:
 Command-Line Usage:
 -------------------
 Run 100 events across 4 parallel processes:
-    $ python3 gen_script.py -o output.root --nov 100 -nt 4
+    $ python3 gen_script.py -o output.root --nov 100 -nw 4
 
 View execution plan without running (Dry Run):
-    $ python3 gen_script.py -o output.root --nov 100 -nt 4 --dry-run
+    $ python3 gen_script.py -o output.root --nov 100 -nw 4 --dry-run
 
 Enable real-time log streaming from worker processes:
     $ python3 gen_script.py -o output.root --nov 100 -nt 4 -v
@@ -185,7 +185,7 @@ class ParallelJob(Logger):
     Attributes:
         output_file: Final merged output ROOT file path.
         seed: Base random seed used to deterministically generate chunk seeds.
-        number_of_threads: Number of concurrent worker processes to launch.
+        number_of_workers: Number of concurrent worker processes to launch.
         number_of_events: Total number of events requested.
         events_per_job: Number of events per chunk (-1 calculates automatically).
         event_numbers: Optional explicit list or comma-separated string of event IDs.
@@ -200,7 +200,7 @@ class ParallelJob(Logger):
         self,
         output_file: Union[str, Path],
         seed: int = 512,
-        number_of_threads: int = 1,
+        number_of_workers: int = 1,
         number_of_events: int = -1,
         events_per_job: int = -1,
         event_numbers: Optional[Union[str, List[int]]] = None,
@@ -209,11 +209,16 @@ class ParallelJob(Logger):
         overwrite: bool = True,
         dry_run: bool = False,
         show_output: bool = False,
+        number_of_threads: Optional[int] = None,
     ):
         super().__init__()
         self.output_file = str(output_file)
         self.seed = seed
-        self.number_of_threads = number_of_threads
+        if number_of_threads is not None:
+            self.number_of_workers = number_of_threads
+        else:
+            self.number_of_workers = number_of_workers
+        self.number_of_threads = self.number_of_workers  # backwards-compatibility alias
         self.number_of_events = number_of_events
         self.events_per_job = events_per_job
         self.event_numbers = event_numbers
@@ -232,8 +237,8 @@ class ParallelJob(Logger):
         """
         if self.events_per_job > 0:
             return self.events_per_job
-        if self.number_of_threads > 0 and self.number_of_events > 0:
-            return ceil(self.number_of_events / self.number_of_threads)
+        if self.number_of_workers > 0 and self.number_of_events > 0:
+            return ceil(self.number_of_events / self.number_of_workers)
         return max(1, self.number_of_events)
 
     def build_plan(self) -> Dict[str, Dict[str, Any]]:
@@ -297,7 +302,7 @@ class ParallelJob(Logger):
             table = Table(
                 title=(
                     f"\n[bold blue]Lorenzetti Parallel Execution Plan[/bold blue]\n"
-                    f"[grey50]Output: {self.output_file}  │  Workers: {self.number_of_threads}  │  "
+                    f"[grey50]Output: {self.output_file}  │  Workers: {self.number_of_workers}  │  "
                     f"Total Events: {self.number_of_events}  │  Merge: {self.merge}[/grey50]\n"
                 ),
                 box=box.ROUNDED,
@@ -401,7 +406,7 @@ class ParallelJob(Logger):
                 self._logger.debug(f"[{chunk_file} stdout]: {res.stdout.strip()}")
             return chunk_file
 
-        with ThreadPoolExecutor(max_workers=max(1, self.number_of_threads)) as executor:
+        with ThreadPoolExecutor(max_workers=max(1, self.number_of_workers)) as executor:
             list(executor.map(_exec_cmd, commands))
 
 
@@ -460,6 +465,8 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
             if value and value.exists():
                 with open(value, "r") as f:
                     data = json.load(f)
+                    if "number_of_threads" in data and "number_of_workers" not in data:
+                        data["number_of_workers"] = data["number_of_threads"]
                     ctx.default_map = ctx.default_map or {}
                     ctx.default_map.update(data)
             return value
@@ -490,10 +497,10 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
                 annotation=Annotated[int, typer.Option("--nov", "--number-of-events", help="Total number of events to run")],
             ),
             inspect.Parameter(
-                "number_of_threads",
+                "number_of_workers",
                 inspect.Parameter.KEYWORD_ONLY,
                 default=1,
-                annotation=Annotated[int, typer.Option("-nt", "--number-of-threads", help="Number of parallel worker processes")],
+                annotation=Annotated[int, typer.Option("-nw", "--number-of-workers", "-nt", "--number-of-threads", help="Number of parallel worker processes")],
             ),
             inspect.Parameter(
                 "events_per_job",
@@ -557,7 +564,7 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
             event_numbers_str = kwargs.pop("event_numbers", None)
 
             # Orchestrator-only options
-            n_threads = kwargs.pop("number_of_threads", 1)
+            n_workers = kwargs.pop("number_of_workers", kwargs.pop("number_of_threads", 1))
             events_per_job = kwargs.pop("events_per_job", -1)
             merge = kwargs.pop("merge", True)
             overwrite = kwargs.pop("overwrite", True)
@@ -586,7 +593,7 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
             job = ParallelJob(
                 output_file=output_file,
                 seed=base_seed,
-                number_of_threads=n_threads,
+                number_of_workers=n_workers,
                 number_of_events=nov,
                 events_per_job=events_per_job,
                 event_numbers=event_numbers_str,
@@ -651,7 +658,7 @@ def parallel_job(_func: Optional[Callable] = None, *, ntuple_name: str = "partic
                 job._logger.info("No jobs to run (all outputs already exist).")
                 return
 
-            job._logger.info(f"Executing {len(commands_to_run)} jobs across {n_threads} processes...")
+            job._logger.info(f"Executing {len(commands_to_run)} jobs across {n_workers} processes...")
             job.run_commands(commands_to_run)
 
             all_chunk_files = list(plan.keys())
@@ -708,6 +715,7 @@ class FileParallelJob(Logger):
         input_path: Union[str, Path],
         output_path: Union[str, Path],
         number_of_threads: int = 1,
+        number_of_workers: Optional[int] = None,
         threads_per_job: int = -1,
         file_pattern: str = "*.root",
         output_replace: Optional[Tuple[str, str]] = None,
@@ -721,6 +729,7 @@ class FileParallelJob(Logger):
         self.input_path = str(input_path)
         self.output_path = str(output_path)
         self.number_of_threads = max(1, number_of_threads)
+        self.number_of_workers = number_of_workers
         self.threads_per_job = threads_per_job
         self.file_pattern = file_pattern
         self.output_replace = output_replace
@@ -755,20 +764,25 @@ class FileParallelJob(Logger):
 
     def get_threads_and_concurrency(self, total_files: int) -> Tuple[int, int]:
         """
-        Calculates `(threads_per_job, max_workers)` based on total cores and file count.
+        Calculates `(threads_per_job, max_workers)` based on total cores, workers, and file count.
 
         Returns:
             Tuple of (threads_per_job, concurrency).
         """
         if self.threads_per_job > 0:
             tpj = self.threads_per_job
+        elif total_files == 1:
+            tpj = self.number_of_threads
+        elif self.number_of_workers is not None and self.number_of_workers > 0 and self.number_of_threads > 1 and self.number_of_threads >= self.number_of_workers:
+            tpj = max(1, self.number_of_threads // self.number_of_workers)
         else:
-            if total_files == 1:
-                tpj = self.number_of_threads
-            else:
-                tpj = 1
-        tpj = max(1, tpj)
-        concurrency = max(1, self.number_of_threads // tpj)
+            tpj = 1
+
+        if self.number_of_workers is not None and self.number_of_workers > 0:
+            concurrency = self.number_of_workers
+        else:
+            concurrency = max(1, self.number_of_threads // tpj)
+
         return tpj, concurrency
 
     def build_plan(self) -> Dict[str, Dict[str, Any]]:
@@ -836,8 +850,8 @@ class FileParallelJob(Logger):
                 title=(
                     f"\n[bold blue]Lorenzetti File Parallel Execution Plan[/bold blue]\n"
                     f"[grey50]Input: {self.input_path}  │  Output: {self.output_path}  │  "
-                    f"Total Cores: {self.number_of_threads}  │  Threads/Job: {tpj}  │  "
-                    f"Concurrency: {workers} worker(s)  │  Merge: {self.merge}[/grey50]\n"
+                    f"Workers: {workers} worker(s)  │  Threads/Job: {tpj}  │  "
+                    f"Total Cores: {workers * tpj}  │  Merge: {self.merge}[/grey50]\n"
                 ),
                 box=box.ROUNDED,
                 border_style="grey50",
@@ -996,10 +1010,16 @@ def file_parallel_job(
                 annotation=Annotated[Path, typer.Option("-o", "--output-file", help="Destination ROOT output file or directory")],
             ),
             inspect.Parameter(
+                "number_of_workers",
+                inspect.Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Annotated[Optional[int], typer.Option("-nw", "--number-of-workers", help="Number of concurrent worker processes to process files")],
+            ),
+            inspect.Parameter(
                 "number_of_threads",
                 inspect.Parameter.KEYWORD_ONLY,
                 default=1,
-                annotation=Annotated[int, typer.Option("-nt", "--number-of-threads", help="Total number of threads/cores")],
+                annotation=Annotated[int, typer.Option("-nt", "--number-of-threads", help="Total number of threads/cores (or threads per worker)")],
             ),
             inspect.Parameter(
                 "threads_per_job",
@@ -1052,6 +1072,7 @@ def file_parallel_job(
             is_worker = kwargs.pop("is_worker", False)
             input_file = kwargs.pop("input_file")
             output_file = kwargs.pop("output_file")
+            n_workers = kwargs.pop("number_of_workers", None)
             n_threads = kwargs.pop("number_of_threads", 1)
             tpj = kwargs.pop("threads_per_job", default_threads_per_job)
             file_pattern = kwargs.pop("file_pattern", "*.root")
@@ -1088,6 +1109,7 @@ def file_parallel_job(
                 input_path=input_file,
                 output_path=output_file,
                 number_of_threads=n_threads,
+                number_of_workers=n_workers,
                 threads_per_job=tpj,
                 file_pattern=file_pattern,
                 output_replace=output_replace,

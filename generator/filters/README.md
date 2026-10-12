@@ -55,8 +55,8 @@ sequenceDiagram
     participant Workers as Parallel Worker Processes
     participant Hadd as ROOT hadd
 
-    User->>TyperCLI: Run gen_*.py -o out.root --nov 1000 -nt 4
-    TyperCLI->>ParallelJob: build_plan(total_events, n_threads, seed)
+    User->>TyperCLI: Run gen_*.py -o out.root --nov 1000 -nw 4
+    TyperCLI->>ParallelJob: build_plan(total_events, n_workers, seed)
     Note over ParallelJob: Splits events into chunks:<br/>out.0.root, out.1.root, out.2.root, out.3.root<br/>Assigns unique pseudo-random seeds
     ParallelJob->>Workers: Dispatch worker tasks (joblib/multiprocessing)
     activate Workers
@@ -319,7 +319,7 @@ The generator scripts provide complete CLI interfaces built with **Typer** and a
 | :--- | :--- | :--- | :--- |
 | `--output-file` | `-o` | *(Required)* | Destination ROOT output file. |
 | `--nov`, `--number-of-events` | | `-1` | Total number of events to simulate. |
-| `--number-of-threads` | `-nt` | `1` | Number of parallel worker processes. |
+| `--number-of-workers` | `-nw`, `-nt` | `1` | Number of parallel worker processes (`--number-of-threads` supported as alias). |
 | `--events-per-job` | | `-1` | Events per chunk/process (computed automatically when `-1`). |
 | `--seed` | `-s` | `512` | Base pseudo-random seed (each worker receives an independent seed). |
 | `--event-numbers` | `-e` | `None` | Comma-separated list of event IDs (e.g. `'0,1,2,3'`). |
@@ -338,7 +338,7 @@ The generator scripts provide complete CLI interfaces built with **Typer** and a
 python3 generator/filters/scripts/gen_jets.py \
     -o /data/jets.root \
     --nov 1000 \
-    -nt 4 \
+    -nw 4 \
     --energy-min 17 \
     --eta-max 3.2
 ```
@@ -348,7 +348,7 @@ python3 generator/filters/scripts/gen_jets.py \
 python3 generator/filters/scripts/gen_zee.py \
     -o /data/zee.root \
     --nov 500 \
-    -nt 4 \
+    -nw 4 \
     --eta-max 2.5 \
     --force-forward-electron
 ```
@@ -358,7 +358,7 @@ python3 generator/filters/scripts/gen_zee.py \
 python3 generator/filters/scripts/gen_single.py \
     -o /data/single_electrons.root \
     --nov 2000 \
-    -nt 8 \
+    -nw 8 \
     -p Electron \
     --energy-min 10 \
     --energy-max 100 \
@@ -372,7 +372,7 @@ python3 generator/filters/scripts/gen_single.py \
 python3 generator/filters/scripts/gen_minbias.py \
     -o /data/minbias.root \
     --nov 200 \
-    -nt 4 \
+    -nw 4 \
     --pileup-per-bunch-crossing 30.0 \
     --bc-id-start -21 \
     --bc-id-end 4
@@ -382,7 +382,7 @@ python3 generator/filters/scripts/gen_minbias.py \
 ```json
 {
   "nov": 500,
-  "number_of_threads": 4,
+  "number_of_workers": 4,
   "energy_min": 20.0,
   "eta_max": 2.5
 }

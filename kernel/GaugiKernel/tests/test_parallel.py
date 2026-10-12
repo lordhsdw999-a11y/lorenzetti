@@ -16,7 +16,7 @@ class TestParallelJobPlanning(unittest.TestCase):
         job = ParallelJob(
             output_file="zee.root",
             seed=42,
-            number_of_threads=4,
+            number_of_workers=4,
             number_of_events=100,
         )
         plan = job.build_plan()
@@ -42,7 +42,7 @@ class TestParallelJobPlanning(unittest.TestCase):
         job = ParallelJob(
             output_file="zee.root",
             seed=100,
-            number_of_threads=3,
+            number_of_workers=3,
             number_of_events=10,
         )
         plan = job.build_plan()
@@ -57,7 +57,7 @@ class TestParallelJobPlanning(unittest.TestCase):
         job = ParallelJob(
             output_file="zee.root",
             seed=512,
-            number_of_threads=2,
+            number_of_workers=2,
             event_numbers="10, 20, 30, 40, 50",
         )
         plan = job.build_plan()
@@ -67,17 +67,29 @@ class TestParallelJobPlanning(unittest.TestCase):
             events_collected.extend(cfg["events"])
         self.assertEqual(events_collected, [10, 20, 30, 40, 50])
 
-    def test_build_plan_single_thread(self):
+    def test_build_plan_single_worker(self):
         job = ParallelJob(
             output_file="single.root",
             seed=999,
-            number_of_threads=1,
+            number_of_workers=1,
             number_of_events=50,
         )
         plan = job.build_plan()
         self.assertEqual(len(plan), 1)
         self.assertIn("single.0.root", plan)
         self.assertEqual(len(plan["single.0.root"]["events"]), 50)
+
+    def test_backwards_compatibility_number_of_threads(self):
+        job = ParallelJob(
+            output_file="compat.root",
+            seed=123,
+            number_of_threads=4,
+            number_of_events=100,
+        )
+        self.assertEqual(job.number_of_workers, 4)
+        self.assertEqual(job.number_of_threads, 4)
+        plan = job.build_plan()
+        self.assertEqual(len(plan), 4)
 
 
 class TestFileParallelJobPlanning(unittest.TestCase):
@@ -114,6 +126,38 @@ class TestFileParallelJobPlanning(unittest.TestCase):
         tpj_single, workers_single = job_single.get_threads_and_concurrency(total_files=1)
         self.assertEqual(tpj_single, 40)
         self.assertEqual(workers_single, 1)
+
+        # Explicit number_of_workers = 8
+        job_workers = FileParallelJob(
+            input_path="dummy.root",
+            output_path="out.root",
+            number_of_workers=8,
+        )
+        tpj_w, workers_w = job_workers.get_threads_and_concurrency(total_files=10)
+        self.assertEqual(tpj_w, 1)
+        self.assertEqual(workers_w, 8)
+
+        # Explicit number_of_workers = 4, threads_per_job = 2
+        job_w_tpj = FileParallelJob(
+            input_path="dummy.root",
+            output_path="out.root",
+            number_of_workers=4,
+            threads_per_job=2,
+        )
+        tpj_wt, workers_wt = job_w_tpj.get_threads_and_concurrency(total_files=10)
+        self.assertEqual(tpj_wt, 2)
+        self.assertEqual(workers_wt, 4)
+
+        # Explicit number_of_workers = 4 with number_of_threads = 16 (auto calculates 4 threads per worker)
+        job_w_threads = FileParallelJob(
+            input_path="dummy.root",
+            output_path="out.root",
+            number_of_threads=16,
+            number_of_workers=4,
+        )
+        tpj_wth, workers_wth = job_w_threads.get_threads_and_concurrency(total_files=10)
+        self.assertEqual(tpj_wth, 4)
+        self.assertEqual(workers_wth, 4)
 
     def test_build_plan_directory(self):
         with tempfile.TemporaryDirectory() as in_dir, tempfile.TemporaryDirectory() as out_dir:
@@ -165,11 +209,22 @@ class TestCliFlagExtraction(unittest.TestCase):
             pass
 
         flags, neg_flags = _extract_cli_flags(dummy_worker.app)
+        self.assertEqual(flags["number_of_workers"], "--number-of-workers")
         self.assertEqual(flags["logging_level"], "--output-level")
         self.assertEqual(flags["enable_feature"], "--enable-feature")
         self.assertEqual(neg_flags["enable_feature"], "--disable-feature")
         self.assertEqual(flags["simple_flag"], "--simple-flag")
         self.assertNotIn("simple_flag", neg_flags)
+
+    def test_extract_cli_flags_parallel_job(self):
+        from GaugiKernel.Parallel import _extract_cli_flags, parallel_job
+
+        @parallel_job
+        def dummy_gen(events, output_file, seed):
+            pass
+
+        flags, _ = _extract_cli_flags(dummy_gen.app)
+        self.assertEqual(flags["number_of_workers"], "--number-of-workers")
 
 
 if __name__ == "__main__":
