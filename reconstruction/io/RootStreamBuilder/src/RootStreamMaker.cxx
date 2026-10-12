@@ -118,8 +118,37 @@ StatusCode RootStreamMaker::setupBranches()
   return StatusCode::SUCCESS;
 }
 
-StatusCode RootStreamMaker::bookHistograms(SG::EventContext &/*ctx*/) const
+StatusCode RootStreamMaker::bookHistograms(SG::EventContext &ctx) const
 {
+  if (m_tree) {
+    return StatusCode::SUCCESS;
+  }
+
+  auto store = ctx.getStoreGateSvc();
+  if (!store) {
+    MSG_FATAL("StoreGate service is null!");
+    return StatusCode::FAILURE;
+  }
+
+  store->cd(); // Ensure gDirectory is root "/" of StoreGate file
+  TFile *file = store->file();
+  if (file) {
+    file->cd();
+    TTree *tree = dynamic_cast<TTree*>(file->Get(m_ntupleName.c_str()));
+    if (!tree) {
+      tree = new TTree(m_ntupleName.c_str(), m_ntupleName.c_str());
+    }
+    const_cast<RootStreamMaker*>(this)->m_tree = tree;
+  } else {
+    const_cast<RootStreamMaker*>(this)->m_tree = new TTree(m_ntupleName.c_str(), m_ntupleName.c_str());
+  }
+
+  store->add(const_cast<RootStreamMaker*>(this)->m_tree);
+
+  if (const_cast<RootStreamMaker*>(this)->setupBranches().isFailure()) {
+    return StatusCode::FAILURE;
+  }
+
   return StatusCode::SUCCESS;
 }
 
@@ -140,27 +169,8 @@ StatusCode RootStreamMaker::execute(SG::EventContext &ctx, int /*evt*/) const
 
 StatusCode RootStreamMaker::post_execute(SG::EventContext &ctx) const
 {
-  // Initialize tree from EventContext decorator if not owned
   if (!m_tree) {
-    auto store = ctx.getStoreGateSvc();
-    if (!store) {
-      MSG_FATAL("StoreGate service is null!");
-      return StatusCode::FAILURE;
-    }
-
-    TFile *file = dynamic_cast<TFile*>(static_cast<TObject*>(store->decorator("events")));
-    if (file) {
-      file->cd();
-      TTree *tree = dynamic_cast<TTree*>(file->Get(m_ntupleName.c_str()));
-      if (!tree) {
-        tree = new TTree(m_ntupleName.c_str(), m_ntupleName.c_str());
-      }
-      const_cast<RootStreamMaker*>(this)->m_tree = tree;
-    } else {
-      m_tree = new TTree(m_ntupleName.c_str(), m_ntupleName.c_str());
-    }
-
-    if (const_cast<RootStreamMaker*>(this)->setupBranches().isFailure()) {
+    if (bookHistograms(ctx).isFailure()) {
       return StatusCode::FAILURE;
     }
   }
@@ -189,6 +199,12 @@ StatusCode RootStreamMaker::finalize()
     delete m_file;
     m_file = nullptr;
     m_tree = nullptr;
+  } else if (m_tree) {
+    TDirectory *dir = m_tree->GetDirectory();
+    if (dir) {
+      dir->cd();
+      m_tree->Write(0, TObject::kOverwrite);
+    }
   }
   return StatusCode::SUCCESS;
 }

@@ -2,7 +2,7 @@ __all__ = ["ComponentAccumulator"]
 
 from GaugiKernel import Logger
 from GaugiKernel.macros import MSG_WARNING
-from typing import List
+from typing import List, Union
 import numpy as np
 import os
 
@@ -46,7 +46,13 @@ class ComponentAccumulator( Logger ):
     self.__acc.bookHistograms(self.__ctx)
 
  
-  def run( self , events : List[int] ):
+  def run( self , events : Union[List[int], int] = -1 ):
+    if isinstance(events, int):
+      total = self.GetEntries()
+      if events > 0:
+        total = min(events, total)
+      events = list(range(max(0, total)))
+
     self.configure()
     for evt in events:
         self.__acc.run(self.__ctx, evt)

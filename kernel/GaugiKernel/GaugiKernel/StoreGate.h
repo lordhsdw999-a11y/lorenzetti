@@ -65,6 +65,8 @@ namespace SG
       
       TObject* decorator(std::string);
 
+      TFile* file() const { return m_file.get(); }
+
 
     private:
 

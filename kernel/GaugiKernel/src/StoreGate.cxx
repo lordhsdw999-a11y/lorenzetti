@@ -33,7 +33,9 @@ void StoreGate::save()
   for( auto it : m_objs)
   {
     MSG_DEBUG( it.first  << " " << it.second);
-    //it.second->Write();
+    if (it.second) {
+      it.second->Write(0, TObject::kOverwrite);
+    }
   }
 
   m_file->Write(0,TObject::kOverwrite);
