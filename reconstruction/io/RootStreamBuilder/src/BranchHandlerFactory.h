@@ -36,7 +36,6 @@
 #include <memory>
 #include <string>
 #include <algorithm>
-#include <unordered_set>
 
 namespace Gaugi {
 
@@ -56,8 +55,7 @@ namespace Gaugi {
         const std::vector<int> &cellHashes = {},
         bool filterBySigma = false,
         float sigmaThreshold = 2.0f,
-        const std::string &descriptorsKey = "CaloDetDescriptors",
-        std::shared_ptr<std::unordered_set<uint32_t>> sharedPassedIndices = nullptr)
+        const std::string &descriptorsKey = "CaloDetDescriptors")
     {
       std::string typeName = rawTypeName;
       // Strip namespace if present
@@ -65,45 +63,44 @@ namespace Gaugi {
         typeName = typeName.substr(6);
       }
 
-      if (typeName == "CaloHitContainer" || typeName == "CaloHit") {
+      if (typeName == "CaloHitContainer") {
         return std::make_unique<CaloHitBranchHandler>(key, onlyRoI, etaWindow, phiWindow, truthKey, cellHashes);
       }
-      else if (typeName == "EventInfoContainer" || typeName == "EventInfo") {
+      else if (typeName == "EventInfoContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::EventInfoContainer,
                                                      xAOD::EventInfo_t,
                                                      xAOD::EventInfoConverter>>("EventInfoContainer", key);
       }
-      else if (typeName == "TruthParticleContainer" || typeName == "TruthParticle") {
+      else if (typeName == "TruthParticleContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::TruthParticleContainer,
                                                      xAOD::TruthParticle_t,
                                                      xAOD::TruthParticleConverter>>("TruthParticleContainer", key);
       }
-      else if (typeName == "SeedContainer" || typeName == "Seed") {
+      else if (typeName == "SeedContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::SeedContainer,
                                                      xAOD::Seed_t,
                                                      xAOD::SeedConverter>>("SeedContainer", key);
       }
-
-      else if (typeName == "CaloDetDescriptorContainer" || typeName == "CaloDetDescriptor") {
+      else if (typeName == "CaloDetDescriptorContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::CaloDetDescriptorContainer,
                                                      xAOD::CaloDetDescriptor_t,
                                                      xAOD::CaloDetDescriptorConverter>>("CaloDetDescriptorContainer", key);
       }
-      else if (typeName == "CaloCellContainer" || typeName == "CaloCell") {
+      else if (typeName == "CaloCellContainer") {
         return std::make_unique<CaloCellBranchHandler>(
-            key, filterBySigma, sigmaThreshold, descriptorsKey, sharedPassedIndices);
+            key, filterBySigma, sigmaThreshold, descriptorsKey);
       }
-      else if (typeName == "CaloClusterContainer" || typeName == "CaloCluster") {
+      else if (typeName == "CaloClusterContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::CaloClusterContainer,
                                                      xAOD::CaloCluster_t,
                                                      xAOD::CaloClusterConverter>>("CaloClusterContainer", key);
       }
-      else if (typeName == "CaloRingsContainer" || typeName == "CaloRings") {
+      else if (typeName == "CaloRingsContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::CaloRingsContainer,
                                                      xAOD::CaloRings_t,
                                                      xAOD::CaloRingsConverter>>("CaloRingsContainer", key);
       }
-      else if (typeName == "ElectronContainer" || typeName == "Electron") {
+      else if (typeName == "ElectronContainer") {
         return std::make_unique<GenericBranchHandler<xAOD::ElectronContainer,
                                                      xAOD::Electron_t,
                                                      xAOD::ElectronConverter>>("ElectronContainer", key);

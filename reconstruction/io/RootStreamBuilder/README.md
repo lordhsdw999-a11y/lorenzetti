@@ -20,11 +20,12 @@ graph TD
         B4["ElectronContainer_Electrons"]
     end
 
-    subgraph Reading ["RootStreamReader (Auto-Discovery)"]
-        Inspect["Inspect TTree Branches"] --> Parse["Parse TypeName and Key"]
-        Parse --> Factory["BranchHandlerFactory"]
-        Factory --> Handler["GenericBranchHandler<Container, Struct, Converter>"]
-        Handler --> SG_Record["Record into EventContext / StoreGate"]
+    subgraph Reading ["RootStreamReader (Auto-Discovery: discoverBranches)"]
+        Inspect["Inspect TTree Branches"] --> Parse["Parse '<TypeName>_<Key>'"]
+        Parse --> Factory["BranchHandlerFactory (xAOD::*Container)"]
+        Factory --> Handler["Instantiate Typed IBranchHandler"]
+        Handler --> Sort["std::stable_sort: CaloDetDescriptorContainer First"]
+        Sort --> SG_Record["Event Loop: Convert & Record into StoreGate"]
     end
 
     subgraph Memory ["EventContext / StoreGate"]
@@ -56,8 +57,9 @@ graph TD
 | `IBranchHandler` | Polymorphic interface for binding, reading, and writing branches in the `TTree`. |
 | `GenericBranchHandler<TContainer, TStruct, TConverter>` | Type-safe C++ template handler for any standard `xAOD` container type. |
 | `CaloHitBranchHandler` | Specialized branch handler for `CaloHitContainer` supporting selective Region of Interest (RoI) filtering during serialization. |
-| `BranchHandlerFactory` | Handler factory based on type name (`TypeName`), instantiating the correct template or specialized handler. |
-| `RootStreamReader` | Algorithm that discovers branches dynamically from the input tree and registers containers. |
+| `CaloCellBranchHandler` | Specialized branch handler for `CaloCellContainer` supporting online independent noise sigma filtering ($E > N\sigma$, ATLAS Run 4) during deserialization. |
+| `BranchHandlerFactory` | Central factory instantiating typed handlers based strictly on EDM container names (`*Container`). |
+| `RootStreamReader` | Algorithm that discovers branches dynamically from the input tree via `discoverBranches()` and records containers into `StoreGate`. |
 | `RootStreamMaker` | Algorithm that reads containers from `EventContext` specified in `ItemList` and fills the `TTree`. |
 | `RootStreamNtupleMaker` | Analysis algorithm producing flat `TTree` structures (e.g. `cl_et`, `cl_rings`, etc.). |
 
@@ -69,20 +71,29 @@ All persistent branches follow the standard format:
 ```
 <TypeName>_<Key>
 ```
-Examples:
+Where `<TypeName>` strictly matches the EDM collection name (always ending in `Container`):
 - `EventInfoContainer_EventInfo`
 - `CaloCellContainer_Cells`
+- `CaloCellContainer_TruthCells`
+- `CaloDetDescriptorContainer_CaloDetDescriptors`
 - `CaloClusterContainer_CaloClusters`
 - `CaloRingsContainer_Rings`
 - `ElectronContainer_Electrons`
+- `CaloHitContainer_Hits`
 
 ---
 
 ## 4. Python Configuration
 
-### 4.1. Automatic Reading (`RootStreamReader`)
+### 4.1. Automatic Reading & Branch Discovery (`RootStreamReader`)
 
-With auto-discovery, there is no need to declare individual keys:
+`RootStreamReader` inspects the input `TTree` at initialization time through `discoverBranches()`:
+
+1. **Branch Listing**: Iterates through all branches in the `TTree`.
+2. **Name Parsing**: Splits each branch name by `_` into `typeName` (e.g. `"CaloCellContainer"`) and `key` (e.g. `"Cells"`).
+3. **Handler Instantiation**: Uses `BranchHandlerFactory::createHandler` to instantiate the appropriate typed `IBranchHandler`.
+4. **Dependency-Aware Ordering**: Executes `std::stable_sort` to ensure `CaloDetDescriptorContainer` is processed **before** `CaloCellContainer`, guaranteeing that detector geometry and noise values ($\sigma$) are in StoreGate when cell filtering and conversion take place.
+5. **Execution**: During `execute()`, all discovered handlers deserialize the branches and register the reconstructed containers into `StoreGate` without requiring manual per-tier configuration.
 
 ```python
 from RootStreamBuilder import RootStreamReaderCfg
@@ -91,7 +102,9 @@ from RootStreamBuilder import RootStreamReaderCfg
 reader = RootStreamReaderCfg(
     name="StreamReader",
     InputFile="output_aod.root",
-    TreeName="CollectionTree"
+    TreeName="CollectionTree",
+    FilterBySigma=False,      # Set to True to enable online noise suppression
+    SigmaThreshold=2.0,       # E > N * sigma (default: 2.0)
 )
 ```
 
@@ -196,15 +209,15 @@ graph LR
     ESD["ESD File on Disk<br/>(Complete or Pre-filtered)"] --> Reader["RootStreamESDReader<br/>(CaloCellBranchHandler)"]
     Reader --> Check{"FilterBySigma Enabled?"}
     Check -->|False| SG_All["Record All Cells & TruthCells to StoreGate"]
-    Check -->|True| Filter["Evaluate E_reco > N * &sigma;_noise<br/>using CaloDetDescriptors"]
-    Filter -->|E > 2&sigma;| SG_Filt["Record Filtered 'Cells' to StoreGate"]
-    Filter -->|E > 2&sigma;| SG_Truth["Record Matching 'TruthCells' to StoreGate"]
-    Filter -->|E &le; 2&sigma;| Skip["Suppress Sub-threshold Cells"]
+    Check -->|True| FilterCells["Filter 'Cells':<br/>E_reco > N * &sigma;_noise"]
+    Check -->|True| FilterTruth["Filter 'TruthCells':<br/>E_truth > N * &sigma;_noise"]
+    FilterCells -->|E > 2&sigma;| SG_Filt["Record to StoreGate ('Cells')"]
+    FilterTruth -->|E > 2&sigma;| SG_Truth["Record to StoreGate ('TruthCells')"]
 ```
 
 #### Key Advantages:
 * **Workflow Efficiency**: Avoids re-running `digit_trf.py` to create separate ESD files for different cell energy thresholds.
-* **Synchronized Truth**: `TruthCells` automatically matches the filtered real `Cells` container 1-to-1 in StoreGate.
+* **Independent Filtering**: Both reconstructed cells (`Cells`) and truth cells (`TruthCells`) are filtered independently according to their own energy ($E > 2\sigma$) without cross-matching dependencies.
 * **Zero Algorithmic Changes Downstream**: `CaloClusterMaker`, `CaloRingsMaker`, and `ElectronMaker` transparently process the filtered cells from StoreGate.
 
 #### Configuration Options:
@@ -228,4 +241,17 @@ ESD = RootStreamESDReader(
     OutputLevel=outputLevel,
 )
 ```
+
+#### Command-Line Usage (`reco_trf.py`):
+```bash
+# Standard reconstruction with Run 4 2-sigma noise cut:
+reco_trf.py -i Zee.ESD.root -o Zee_2sigma.AOD.root --filter-by-sigma --sigma-threshold 2.0
+
+# Alternate 3-sigma noise cut:
+reco_trf.py -i Zee.ESD.root -o Zee_3sigma.AOD.root --filter-by-sigma --sigma-threshold 3.0
+
+# Study / calibration mode (retain all cells, no noise cut):
+reco_trf.py -i Zee.ESD.root -o Zee_all.AOD.root --no-filter-by-sigma
+```
+
 

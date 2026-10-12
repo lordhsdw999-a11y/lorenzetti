@@ -48,7 +48,6 @@ private:
   TFile *m_file;
   TTree *m_tree;
   std::vector<std::unique_ptr<Gaugi::IBranchHandler>> m_handlers;
-  std::shared_ptr<std::unordered_set<uint32_t>> m_cellPassedIndices;
 };
 
 #endif

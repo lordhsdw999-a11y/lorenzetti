@@ -102,7 +102,7 @@ StatusCode RootStreamMaker::setupBranches()
         typeName, key, m_onlyRoI, m_etaWindow, m_phiWindow, m_truthKey, m_cellHashes);
     if (handler) {
       handler->initWriteBranch(m_tree);
-      if (m_onlyRoI && (typeName == "CaloHitContainer" || typeName == "CaloHit")) {
+      if (m_onlyRoI && typeName == "CaloHitContainer") {
         MSG_INFO("Configured write branch '" << handler->branchName() << "' with RoI filtering (TruthKey: "
                  << m_truthKey << ", EtaWindow: " << m_etaWindow << ", PhiWindow: " << m_phiWindow << ")");
       } else {

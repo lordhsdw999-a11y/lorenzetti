@@ -63,12 +63,6 @@ private:
   /*! Output master CaloDetDescriptorContainer key */
   std::string m_descriptorsKey;
 
-  /*! Filter out empty cells with energy <= m_minEnergy */
-  bool m_filterEmptyCells;
-
-  /*! Minimum energy threshold for cell retention when filtering is active (in MeV) */
-  float m_minEnergy;
-
   /*! Filter cells with energy <= m_sigmaThreshold * sigma */
   bool m_filterBySigma;
 

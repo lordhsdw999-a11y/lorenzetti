@@ -109,8 +109,6 @@ class CaloCellBuilder(Logger):
         OutputTruthCellsKey: str = "TruthCells",
         OutputDescriptorsKey: str = "CaloDetDescriptors",
         InputEventKey: str = "Events",
-        FilterEmptyCells: bool = False,
-        MinEnergy: float = 0.0,
         FilterBySigma: Optional[bool] = None,
         SigmaThreshold: Optional[float] = None,
         OutputLevel: int = LoggingLevel.toC("INFO"),
@@ -140,8 +138,8 @@ def configure_digitization(detector_construction: Any) -> ComponentAccumulator:
         OutputCellsKey="Cells",
         OutputTruthCellsKey="TruthCells",
         OutputDescriptorsKey="CaloDetDescriptors",
-        FilterEmptyCells=True,
-        MinEnergy=0.0,  # Filter out empty cells
+        FilterBySigma=True,
+        SigmaThreshold=2.0,
         OutputLevel=LoggingLevel.toC("INFO"),
     )
 
@@ -161,28 +159,29 @@ In High-Luminosity LHC (HL-LHC / ATLAS Run 4), the extreme calorimeter readout b
 $$E_{\text{reco}} > N \cdot \sigma_{\text{noise}} \quad (\text{with } N = 2.0)$$
 
 ### 5.2 Merge-Level Filtering Mechanism
-Filtering is executed online within the `CaloCellMerge` algorithm during the creation of unified event collections:
+Filtering is executed online within the `CaloCellMerge` algorithm during the creation of unified event collections. Both reconstructed cells ($E_{\text{reco}}$) and truth cells ($E_{\text{truth}}$) are evaluated **independently** against the noise threshold:
 
 ```mermaid
 graph TD
     Desc["CaloDetDescriptor (Sampling Collection)"] --> Check{"FilterBySigma active?"}
-    Check -- "No" --> RetainAll["Keep cell in Containers"]
-    Check -- "Yes" --> Eval{"E_reco > N * &sigma;?"}
-    Eval -- "No (Noise/Sub-threshold)" --> Drop["Discard Cell, Truth Cell & Descriptor"]
-    Eval -- "Yes (Significant Signal)" --> Retain["Store in Containers"]
-
-    subgraph Synchronized Retention
-        Retain --> D["1. Push to CaloDetDescriptors"]
-        Retain --> C["2. Create xAOD::CaloCell (reco) in 'Cells'"]
-        Retain --> TC["3. Create matching xAOD::CaloCell (truth) in 'TruthCells'"]
-    end
+    Check -- "No" --> RetainAll["Keep cells in Containers"]
+    Check -- "Yes" --> Eval{"Evaluate thresholds:<br/>E_reco > N*&sigma;?<br/>E_truth > N*&sigma;?"}
+    Eval -- "Both Fail" --> Drop["Discard Descriptor & Cells"]
+    Eval -- "At least one Passes" --> DescRetain["1. Store Descriptor in CaloDetDescriptors"]
+    DescRetain --> CheckReco{"E_reco > N*&sigma;?"}
+    CheckReco -- "Yes" --> RecoPass["2. Create xAOD::CaloCell in 'Cells'"]
+    CheckReco -- "No" --> RecoDrop["Suppress from 'Cells'"]
+    DescRetain --> CheckTruth{"E_truth > N*&sigma;?"}
+    CheckTruth -- "Yes" --> TruthPass["3. Create xAOD::CaloCell in 'TruthCells'"]
+    CheckTruth -- "No" --> TruthDrop["Suppress from 'TruthCells'"]
 ```
 
-### 5.3 Truth Cell Correspondence
-To preserve strict physical correspondence between digital readout and simulated ground truth:
-* `TruthCells` only retains the simulated energy deposits for cells that **survived the reconstructed $2\sigma$ cut**.
-* If a cell fails the $2\sigma$ cut, neither the reconstructed cell nor its truth counterpart is written to StoreGate or disk.
-* Master descriptor indices and `ElementLink<xAOD::CaloDetDescriptor>` remain strictly aligned 1-to-1 between reconstructed and truth cells.
+### 5.3 Independent Filtering Policy
+Reconstructed and truth cells are filtered independently without cross-matching constraints:
+* Real cells are recorded into `Cells` if $E_{\text{reco}} > N\sigma$.
+* Truth cells are recorded into `TruthCells` if $E_{\text{truth}} > N\sigma$.
+* If neither passes the threshold, the descriptor is omitted entirely from `CaloDetDescriptors`.
+* For surviving cells, the `ElementLink<xAOD::CaloDetDescriptor>` points to the common master descriptor index in `CaloDetDescriptors`.
 
 ### 5.4 Command-Line Configuration (`digit_trf.py`)
 

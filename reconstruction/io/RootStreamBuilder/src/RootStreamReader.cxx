@@ -16,8 +16,7 @@ RootStreamReader::RootStreamReader(std::string name)
     m_descriptorsKey("CaloDetDescriptors"),
     m_file(nullptr),
     m_tree(nullptr),
-    m_handlers(),
-    m_cellPassedIndices(std::make_shared<std::unordered_set<uint32_t>>())
+    m_handlers()
 {
   declareProperty("InputFile",        m_inputFile);
   declareProperty("NtupleName",       m_ntupleName);
@@ -93,10 +92,10 @@ StatusCode RootStreamReader::discoverBranches(TTree *tree)
 
     auto handler = BranchHandlerFactory::createHandler(
         typeName, key, false, 0.4f, 0.4f, "Particles", {},
-        m_filterBySigma, m_sigmaThreshold, m_descriptorsKey, m_cellPassedIndices);
+        m_filterBySigma, m_sigmaThreshold, m_descriptorsKey);
     if (handler) {
       handler->initReadBranch(tree);
-      if (m_filterBySigma && (typeName == "CaloCellContainer" || typeName == "CaloCell")) {
+      if (m_filterBySigma && typeName == "CaloCellContainer") {
         MSG_INFO("Auto-discovered branch '" << bname << "' -> Type: " << typeName << ", Key: " << key
                  << " [2-sigma cell filtering active: E > " << m_sigmaThreshold << " * sigma]");
       } else {
@@ -108,21 +107,12 @@ StatusCode RootStreamReader::discoverBranches(TTree *tree)
     }
   }
 
-  // Ensure CaloDetDescriptorContainer is processed before CaloCellContainer, and Cells before TruthCells
+  // Ensure CaloDetDescriptorContainer is processed before CaloCellContainer
   std::stable_sort(m_handlers.begin(), m_handlers.end(), [](const auto &a, const auto &b) {
-    bool a_desc = (a->typeName() == "CaloDetDescriptorContainer" || a->typeName() == "CaloDetDescriptor");
-    bool b_desc = (b->typeName() == "CaloDetDescriptorContainer" || b->typeName() == "CaloDetDescriptor");
+    bool a_desc = (a->typeName() == "CaloDetDescriptorContainer");
+    bool b_desc = (b->typeName() == "CaloDetDescriptorContainer");
     if (a_desc && !b_desc) return true;
     if (!a_desc && b_desc) return false;
-
-    bool a_cells = (a->key() == "Cells");
-    bool b_truth = (b->key() == "TruthCells");
-    if (a_cells && b_truth) return true;
-
-    bool a_truth = (a->key() == "TruthCells");
-    bool b_cells = (b->key() == "Cells");
-    if (a_truth && b_cells) return false;
-
     return false;
   });
 

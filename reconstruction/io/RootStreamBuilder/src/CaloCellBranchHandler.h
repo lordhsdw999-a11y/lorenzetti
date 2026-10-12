@@ -5,8 +5,6 @@
 #include "CaloCell/CaloCellContainer.h"
 #include "CaloCell/CaloCellConverter.h"
 #include "CaloCell/CaloDetDescriptorContainer.h"
-#include <unordered_set>
-#include <memory>
 #include <string>
 
 namespace Gaugi {
@@ -15,9 +13,8 @@ namespace Gaugi {
    * @class CaloCellBranchHandler
    * @brief Specialized branch handler for CaloCellContainer with optional noise sigma filtering (ATLAS Run 4).
    *
-   * Evaluates reconstructed cell energies against electronic noise sigma (E > N*sigma)
-   * on-the-fly during read. Surviving cells are recorded into StoreGate, and matching
-   * TruthCells are automatically filtered to maintain strict 1-to-1 correspondence.
+   * Evaluates cell energies against electronic noise sigma (E > N*sigma)
+   * independently on-the-fly during read. Surviving cells are recorded into StoreGate.
    */
   class CaloCellBranchHandler : public GenericBranchHandler<xAOD::CaloCellContainer,
                                                             xAOD::CaloCell_t,
@@ -26,20 +23,14 @@ namespace Gaugi {
     CaloCellBranchHandler(const std::string &key,
                           bool filterBySigma = false,
                           float sigmaThreshold = 2.0f,
-                          const std::string &descriptorsKey = "CaloDetDescriptors",
-                          std::shared_ptr<std::unordered_set<uint32_t>> sharedPassedIndices = nullptr)
+                          const std::string &descriptorsKey = "CaloDetDescriptors")
       : GenericBranchHandler("CaloCellContainer", key),
         m_filterBySigma(filterBySigma),
         m_sigmaThreshold(sigmaThreshold),
-        m_descriptorsKey(descriptorsKey),
-        m_passedIndices(sharedPassedIndices ? sharedPassedIndices : std::make_shared<std::unordered_set<uint32_t>>())
+        m_descriptorsKey(descriptorsKey)
     {}
 
     virtual ~CaloCellBranchHandler() = default;
-
-    std::shared_ptr<std::unordered_set<uint32_t>> passedIndices() const {
-      return m_passedIndices;
-    }
 
     virtual StatusCode readAndRecord(SG::EventContext &ctx) override {
       if (!m_data) {
@@ -53,67 +44,25 @@ namespace Gaugi {
         SG::ReadHandle<xAOD::CaloDetDescriptorContainer> descContainer(m_descriptorsKey, ctx);
         bool hasDescriptors = descContainer.isValid();
 
-        if (m_key == "Cells") {
-          m_passedIndices->clear();
-
-          for (const auto &item_t : *m_data) {
-            float reco_e = item_t.e;
-            float sigma = 0.0f;
-            if (hasDescriptors && item_t.descriptor_index < descContainer->size()) {
-              const auto desc = descContainer->at(item_t.descriptor_index);
-              if (desc) {
-                sigma = desc->sigma();
-              }
-            }
-
-            float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : 0.0f;
-            if (reco_e <= threshold) {
-              continue; // Filter out cell with E <= N*sigma
-            }
-
-            m_passedIndices->insert(item_t.descriptor_index);
-
-            xAOD::CaloCell *cell = nullptr;
-            cnv.convert(item_t, cell);
-            if (cell) {
-              container->push_back(cell);
+        for (const auto &item_t : *m_data) {
+          float cell_e = item_t.e;
+          float sigma = 0.0f;
+          if (hasDescriptors && item_t.descriptor_index < descContainer->size()) {
+            const auto desc = descContainer->at(item_t.descriptor_index);
+            if (desc) {
+              sigma = desc->sigma();
             }
           }
-        } else if (m_key == "TruthCells") {
-          // Truth cells must strictly match the surviving real cells
-          for (const auto &item_t : *m_data) {
-            if (!m_passedIndices->count(item_t.descriptor_index)) {
-              continue; // Filter out truth cell because corresponding real cell was filtered
-            }
 
-            xAOD::CaloCell *cell = nullptr;
-            cnv.convert(item_t, cell);
-            if (cell) {
-              container->push_back(cell);
-            }
+          float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : 0.0f;
+          if (cell_e <= threshold) {
+            continue; // Filter out cell with E <= N*sigma
           }
-        } else {
-          // General cell container
-          for (const auto &item_t : *m_data) {
-            float reco_e = item_t.e;
-            float sigma = 0.0f;
-            if (hasDescriptors && item_t.descriptor_index < descContainer->size()) {
-              const auto desc = descContainer->at(item_t.descriptor_index);
-              if (desc) {
-                sigma = desc->sigma();
-              }
-            }
 
-            float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : 0.0f;
-            if (reco_e <= threshold) {
-              continue;
-            }
-
-            xAOD::CaloCell *cell = nullptr;
-            cnv.convert(item_t, cell);
-            if (cell) {
-              container->push_back(cell);
-            }
+          xAOD::CaloCell *cell = nullptr;
+          cnv.convert(item_t, cell);
+          if (cell) {
+            container->push_back(cell);
           }
         }
       } else {
@@ -136,7 +85,6 @@ namespace Gaugi {
     bool m_filterBySigma;
     float m_sigmaThreshold;
     std::string m_descriptorsKey;
-    std::shared_ptr<std::unordered_set<uint32_t>> m_passedIndices;
   };
 
 } // namespace Gaugi

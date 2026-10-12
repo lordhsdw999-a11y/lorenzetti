@@ -31,8 +31,6 @@ CaloCellMerge::CaloCellMerge(std::string name) :
   declareProperty("OutputCellsKey", m_cellsKey = "Cells");
   declareProperty("OutputTruthCellsKey", m_truthCellsKey = "TruthCells");
   declareProperty("OutputDescriptorsKey", m_descriptorsKey = "CaloDetDescriptors");
-  declareProperty("FilterEmptyCells", m_filterEmptyCells = false);
-  declareProperty("MinEnergy", m_minEnergy = 0.0);
   declareProperty("FilterBySigma", m_filterBySigma = false);
   declareProperty("SigmaThreshold", m_sigmaThreshold = 2.0);
   declareProperty("OutputLevel", m_outputLevel = 1);
@@ -120,13 +118,20 @@ StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
       float reco_e = const_descriptor->e();
       float truth_e = const_descriptor->edep();
 
+      bool pass_reco = false;
+      bool pass_truth = false;
+
       if (m_filterBySigma) {
         float sigma = const_descriptor->sigma();
-        float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : m_minEnergy;
-        if (reco_e <= threshold) {
-          continue;
-        }
-      } else if (m_filterEmptyCells && reco_e <= m_minEnergy && truth_e <= m_minEnergy) {
+        float threshold = (sigma > 0.0f) ? (m_sigmaThreshold * sigma) : 0.0f;
+        pass_reco = (reco_e > threshold);
+        pass_truth = (truth_e > threshold);
+      } else {
+        pass_reco = true;
+        pass_truth = true;
+      }
+
+      if (!pass_reco && !pass_truth) {
         continue;
       }
 
@@ -135,8 +140,8 @@ StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
       uint32_t desc_index = static_cast<uint32_t>(descContainer->size());
       descContainer->push_back(descriptor);
      
-      // 1. Create the truth cell (deposited energy from simulation) corresponding to filtered real cell
-      if (m_filterBySigma || !m_filterEmptyCells || truth_e > m_minEnergy) {
+      // 1. Create the truth cell (deposited energy from simulation)
+      if (pass_truth) {
         auto truth_cell = new xAOD::CaloCell();
         truth_cell->setEta(const_descriptor->eta());
         truth_cell->setPhi(const_descriptor->phi());
@@ -152,7 +157,7 @@ StatusCode CaloCellMerge::post_execute(EventContext &ctx) const {
       }
 
       // 2. Create the reconstructed cell (estimated energy from Optimal Filter)
-      if (m_filterBySigma || !m_filterEmptyCells || reco_e > m_minEnergy) {
+      if (pass_reco) {
         auto cell = new xAOD::CaloCell();
         cell->setEta(const_descriptor->eta());
         cell->setPhi(const_descriptor->phi());

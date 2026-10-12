@@ -42,8 +42,6 @@ class CaloCellBuilder(Logger):
         OutputTruthCellsKey: str = "TruthCells",
         OutputDescriptorsKey: str = "CaloDetDescriptors",
         InputEventKey: str = "Events",
-        FilterEmptyCells: bool = False,
-        MinEnergy: float = 0.0,
         FilterBySigma: Optional[bool] = None,
         SigmaThreshold: Optional[float] = None,
         OutputLevel: int = LoggingLevel.toC("INFO"),
@@ -60,8 +58,6 @@ class CaloCellBuilder(Logger):
             OutputTruthCellsKey: StoreGate key for output truth cells container.
             OutputDescriptorsKey: StoreGate key for master descriptor collection.
             InputEventKey: StoreGate key for event headers.
-            FilterEmptyCells: If True, discards cells with energy <= MinEnergy.
-            MinEnergy: Minimum energy threshold for cell retention in MeV.
             FilterBySigma: If True, discards cells with energy <= SigmaThreshold * sigma.
             SigmaThreshold: Multiplier threshold for noise sigma cut (default: 2.0).
             OutputLevel: Logging verbosity level.
@@ -74,8 +70,6 @@ class CaloCellBuilder(Logger):
         self.OutputCellsKey: str = OutputCellsKey
         self.OutputTruthCellsKey: str = OutputTruthCellsKey
         self.OutputDescriptorsKey: str = OutputDescriptorsKey
-        self.FilterEmptyCells: bool = FilterEmptyCells
-        self.MinEnergy: float = MinEnergy
         self.FilterBySigma: bool = CaloFlags.FilterBySigma if FilterBySigma is None else FilterBySigma
         self.SigmaThreshold: float = CaloFlags.SigmaThreshold if SigmaThreshold is None else SigmaThreshold
         self.Detector: Any = detector
@@ -189,8 +183,6 @@ class CaloCellBuilder(Logger):
             OutputTruthCellsKey=self.OutputTruthCellsKey,
             OutputCellsKey=self.OutputCellsKey,
             OutputDescriptorsKey=self.OutputDescriptorsKey,
-            FilterEmptyCells=self.FilterEmptyCells,
-            MinEnergy=self.MinEnergy,
             FilterBySigma=self.FilterBySigma,
             SigmaThreshold=self.SigmaThreshold,
             OutputLevel=self.OutputLevel,
