@@ -1,6 +1,6 @@
 __all__ = ["ComponentAccumulator"]
 
-from GaugiKernel import Logger
+from GaugiKernel import Logger, Configurable
 from GaugiKernel.macros import MSG_WARNING
 from typing import List, Union
 import numpy as np
@@ -14,6 +14,7 @@ class ComponentAccumulator( Logger ):
   def __init__(self, 
                name            : str, 
                output          : str, 
+               reader          : Configurable,
               ):
     
     Logger.__init__(self)
@@ -26,8 +27,6 @@ class ComponentAccumulator( Logger ):
     self.__ctx = SG.EventContext("EventContext")
     self.__store = SG.StoreGate(output)
     self.__ctx.setStoreGateSvc(self.__store)
-
-  def SetReader(self, reader):
     self.__reader = reader
     self.__acc.push_back(reader.c_ptr())
 

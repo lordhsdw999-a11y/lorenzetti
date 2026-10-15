@@ -36,7 +36,6 @@ def main(
 
     exec(pre_init)
 
-    acc = ComponentAccumulator("ComponentAccumulator", output_file)
 
     reader = RootStreamHITReader(
         "HITReader",
@@ -47,7 +46,8 @@ def main(
         OutputSeedsKey=recordable("Seeds"),
         OutputLevel=outputLevel,
     )
-    reader.merge(acc)
+
+    acc = ComponentAccumulator("ComponentAccumulator", output_file, reader)
 
     calorimeter = CaloCellBuilder(
         "CaloCellBuilder",
