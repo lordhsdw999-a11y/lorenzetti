@@ -38,8 +38,5 @@ class EventReader(Configurable):
         else:
             self.__entries = 0
 
-    def merge(self, acc):
-        acc.setGenerator(self)
-
     def GetEntries(self):
         return self.__entries

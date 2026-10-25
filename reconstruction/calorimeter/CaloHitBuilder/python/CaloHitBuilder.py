@@ -54,18 +54,14 @@ class CaloHitBuilder(Logger):
         self.FilterEmptyHits: bool = FilterEmptyHits
         self.MinEnergy: float = MinEnergy
         self.OutputCollectionKeys: List[str] = []
-        self.__detector: Optional[Any] = None
 
-    def configure(self) -> None:
+    def compile(self, detector_construction: Configurable) -> None:
         """
         Configures all CaloHitMaker algorithms and the CaloHitMerge algorithm.
         """
         MSG_INFO(self, "Configure CaloHitBuilder.")
 
-        if self.__detector is None:
-            raise RuntimeError("Detector description is not set in CaloHitBuilder.")
-
-        for samp in self.__detector.samplings:
+        for samp in detector_construction.samplings:
             MSG_INFO(
                 self,
                 f"Create new CaloHitMaker and dump all hits into {samp.CollectionKey}",
@@ -111,7 +107,6 @@ class CaloHitBuilder(Logger):
         Args:
             acc: The ComponentAccumulator to merge with.
         """
-        self.__detector = acc.detector()
-        self.configure()
+        self.compile(acc.get_detector_construction())
         for reco in self.RecoAlgs:
             acc += reco

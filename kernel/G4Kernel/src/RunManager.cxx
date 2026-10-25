@@ -27,10 +27,11 @@
 #include <cstdlib>
 
 
-RunManager::RunManager( std::string name ): 
+RunManager::RunManager( std::string name, PrimaryGenerator *gen, G4VUserDetectorConstruction *det ): 
   IMsgService( name ),
   PropertyService(),
-  m_detector(nullptr),
+  m_generator(gen),
+  m_detector(det),
   m_uiCommands()
 {
   
@@ -50,17 +51,6 @@ RunManager::~RunManager()
 void RunManager::push_back( Gaugi::Algorithm *alg )
 {
   m_acc.push_back( alg );
-}
-
-
-void RunManager::setGenerator( PrimaryGenerator *gen )
-{
-  m_generator = gen;
-}
-
-void RunManager::setDetectorConstruction( G4VUserDetectorConstruction *det )
-{
-  m_detector = det;
 }
 
 

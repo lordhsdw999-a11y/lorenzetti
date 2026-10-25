@@ -74,12 +74,22 @@ class Configurable(Logger):
     Provides automatic C++ property synchronization via attribute access.
     """
 
-    def __init__(self, core_class, name, **kwargs):
+    def __init__(self, core_class, name, *args, **kwargs):
         Logger.__init__(self, name)
+        c_args = [treatPropertyValue(a) for a in args]
         try:
-            self._c_ptr = core_class(name)
+            self._c_ptr = core_class(name, *c_args)
         except TypeError:
-            self._c_ptr = core_class()
+            if not args:
+                try:
+                    self._c_ptr = core_class()
+                except TypeError:
+                    self._c_ptr = core_class(name)
+            else:
+                try:
+                    self._c_ptr = core_class(name, *args)
+                except TypeError:
+                    raise
 
         properties = [str(p) for p in self._c_ptr.getProperties()] if hasattr(self._c_ptr, "getProperties") else []
         self._properties = set(properties)

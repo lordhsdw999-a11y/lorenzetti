@@ -1069,6 +1069,7 @@ def file_parallel_job(
         new_sig = sig.replace(parameters=all_params)
 
         def cli_entry(**kwargs):
+
             is_worker = kwargs.pop("is_worker", False)
             input_file = kwargs.pop("input_file")
             output_file = kwargs.pop("output_file")

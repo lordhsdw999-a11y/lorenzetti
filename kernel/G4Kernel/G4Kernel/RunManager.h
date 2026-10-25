@@ -18,16 +18,12 @@ class RunManager: public MsgService,
 {
   public:
 
-    RunManager( std::string name );
+    RunManager( std::string name, PrimaryGenerator *gen, G4VUserDetectorConstruction *det );
     ~RunManager();
     
     void run( int evt=10000);
 
     void push_back( Gaugi::Algorithm* );
-
-    void setGenerator( PrimaryGenerator * );
-
-    void setDetectorConstruction( G4VUserDetectorConstruction * );
 
     void addUICommand( std::string cmd ){
       m_uiCommands.push_back( cmd );

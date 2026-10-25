@@ -1,0 +1,36 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ master, python_refactory, main ]
+  pull_request:
+    branches: [ master, python_refactory, main ]
+
+jobs:
+  test:
+    name: Run Lorenzetti Test Suite
+    runs-on: self-hosted
+    container:
+      image: docker://lorenzetti/lorenzetti:latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Lorenzetti
+        shell: bash
+        run: |
+          mkdir -p build && cd build
+          cmake ..
+          make -j$(grep -c ^processor /proc/cpuinfo || echo 4)
+          cp ../kernel/GaugiKernel/cmake/lzt_setup.sh .
+          cd ..
+
+      - name: Run Package Unit Tests
+        shell: bash
+        run: |
+          make test-units
+
+      - name: Run Root Integration Tests
+        shell: bash
+        run: |
+          make test-integration

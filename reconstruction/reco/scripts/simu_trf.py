@@ -35,13 +35,6 @@ def main(
 
     exec(pre_init)
 
-    acc = ComponentAccumulator(
-        "ComponentAccumulator",
-        DetectorConstruction_v1("ATLAS", UseMagneticField=enable_magnetic_field),
-        NumberOfThreads=number_of_threads,
-        OutputFile=output_file,
-        Timeout=timeout * MINUTES,
-    )
 
     gun = EventReader(
         "EventReader",
@@ -50,6 +43,17 @@ def main(
         OutputTruthKey=recordable("Particles"),
         OutputSeedKey=recordable("Seeds"),
     )
+
+    acc = ComponentAccumulator(
+        "ComponentAccumulator",
+        DetectorConstruction_v1("ATLAS", UseMagneticField=enable_magnetic_field),
+        gun,
+        NumberOfThreads=number_of_threads,
+        OutputFile=output_file,
+        Timeout=timeout * MINUTES,
+    )
+
+
     calorimeter = CaloHitBuilder(
         "CaloHitBuilder",
         HistogramPath="Expert/Hits",
@@ -57,8 +61,8 @@ def main(
         OutputHitsKey=recordable("Hits"),
     )
 
-    gun.merge(acc)
     calorimeter.merge(acc)
+
     HIT = RootStreamHITMaker(
         "RootStreamHITMaker",
         OutputLevel=outputLevel,
